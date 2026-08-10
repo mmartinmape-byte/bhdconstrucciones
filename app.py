@@ -19,7 +19,7 @@ SUBTITULO = os.environ.get(
     "SUBTITULO",
     "Dejanos tus datos y te asesoramos sin cargo sobre la propiedad ideal para vos."
 )
-WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "")  # ej: 5493815551234 (solo numeros)
+WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491130757520")  # solo numeros, con codigo de pais
 
 # Texto de presentacion de la empresa
 NOSOTROS = os.environ.get(
