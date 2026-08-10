@@ -325,66 +325,6 @@ def gracias():
                            whatsapp=WHATSAPP_EMPRESA, wa_link=wa_link)
 
 
-@app.route("/diag-email")
-def diag_email():
-    # Ruta temporal de diagnostico. Se elimina despues de resolver el email.
-    if request.args.get("key") != "diag-bhd-2026":
-        return "no autorizado", 403
-
-    datos_prueba = {
-        "nombre": "DIAGNÓSTICO", "whatsapp": "1130757520", "email": NOTIFY_EMAIL,
-        "busca": "-", "tipo_propiedad": "-", "zona": "-",
-        "mensaje": "Prueba de diagnóstico del aviso",
-    }
-
-    # Diagnostico de WhatsApp (CallMeBot)
-    if request.args.get("canal") == "whatsapp":
-        info = {
-            "callmebot_apikey_cargada": bool(CALLMEBOT_APIKEY),
-            "callmebot_phone": CALLMEBOT_PHONE,
-        }
-        if not CALLMEBOT_APIKEY:
-            info["resultado"] = "Falta cargar CALLMEBOT_APIKEY en Railway"
-            return info
-        try:
-            info["respuesta_callmebot"] = enviar_whatsapp(datos_prueba)
-            info["resultado"] = "Mensaje enviado. Revisá tu WhatsApp."
-        except Exception as e:
-            info["error"] = repr(e)
-        return info
-
-    # Diagnostico de email (Resend)
-    info = {
-        "resend_api_key_cargada": bool(RESEND_API_KEY),
-        "email_from": EMAIL_FROM,
-        "notify_email": NOTIFY_EMAIL,
-    }
-    if not RESEND_API_KEY:
-        info["resultado"] = "Falta cargar RESEND_API_KEY en Railway"
-        return info
-    try:
-        asunto, html, texto = _armar_email({
-            "nombre": "DIAGNÓSTICO", "whatsapp": "1130757520", "email": NOTIFY_EMAIL,
-            "busca": "-", "tipo_propiedad": "-", "zona": "-",
-            "mensaje": "Prueba de diagnóstico del envío de email",
-        })
-        respuesta = _enviar_resend(asunto, html, texto)
-        info["envio"] = "OK"
-        info["respuesta_resend"] = respuesta
-        info["resultado"] = "Email enviado. Revisá la casilla."
-    except Exception as e:
-        cuerpo = ""
-        if hasattr(e, "read"):
-            try:
-                cuerpo = e.read().decode("utf-8")
-            except Exception:
-                pass
-        info["error"] = repr(e)
-        if cuerpo:
-            info["detalle"] = cuerpo
-    return info
-
-
 # --- Admin ------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
