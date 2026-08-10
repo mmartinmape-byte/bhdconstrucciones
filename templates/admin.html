@@ -22,6 +22,8 @@
     .term{background:#eef1f6;color:#33404d}
     a.wa{color:#128C7E;text-decoration:none;font-weight:600}
     .vacio{text-align:center;padding:60px 20px;color:#8a94a0}
+    .del{background:none;border:1px solid #e0b4b4;color:#c0392b;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600}
+    .del:hover{background:#c0392b;color:#fff;border-color:#c0392b}
   </style>
 </head>
 <body>
@@ -42,7 +44,7 @@
       <thead>
         <tr>
           <th>Fecha</th><th>Nombre</th><th>WhatsApp</th><th>Email</th>
-          <th>Busca</th><th>Tipo</th><th>Zona</th><th>Comentario</th>
+          <th>Busca</th><th>Tipo</th><th>Zona</th><th>Comentario</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -59,6 +61,11 @@
           <td>{{ l.tipo_propiedad }}</td>
           <td>{{ l.zona }}</td>
           <td>{{ l.mensaje }}</td>
+          <td>
+            <form method="post" action="/borrar/{{ l.id }}" onsubmit="return confirm('¿Borrar este lead? No se puede deshacer.');">
+              <button class="del" type="submit">Borrar</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

@@ -175,6 +175,20 @@ def admin():
     return render_template("admin.html", leads=leads, empresa=EMPRESA)
 
 
+@app.route("/borrar/<int:lead_id>", methods=["POST"])
+@login_required
+def borrar(lead_id):
+    db = SessionLocal()
+    try:
+        lead = db.get(Lead, lead_id)
+        if lead:
+            db.delete(lead)
+            db.commit()
+    finally:
+        db.close()
+    return redirect(url_for("admin"))
+
+
 @app.route("/exportar")
 @login_required
 def exportar():
