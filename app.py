@@ -1,8 +1,10 @@
 import os
 import csv
 import io
+import json
 import socket
 import smtplib
+import urllib.request
 from contextlib import contextmanager
 from email.message import EmailMessage
 from datetime import datetime
@@ -41,12 +43,15 @@ SUBTITULO = os.environ.get(
 WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491130757520")  # solo numeros, con codigo de pais
 
 # --- Aviso por email cuando entra un lead ---
-# Para que funcione hay que cargar SMTP_USER y SMTP_PASS en Railway (ver README).
+# Railway bloquea SMTP, asi que usamos Resend (API por HTTPS). Cargar RESEND_API_KEY en Railway.
 NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "mmartinmape@gmail.com")  # a donde llega el aviso
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")  # clave de resend.com
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "BHD CONSTRUCCIONES <onboarding@resend.dev>")
+# SMTP (solo para uso local; en Railway no funciona por bloqueo de puertos)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "")  # tu casilla que envia (ej: mmartinmape@gmail.com)
-SMTP_PASS = os.environ.get("SMTP_PASS", "")  # contraseña de aplicacion de Gmail (16 caracteres)
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
 
 # Texto de presentacion de la empresa
 NOSOTROS = os.environ.get(
@@ -132,18 +137,10 @@ def login_required(f):
     return wrapper
 
 
-def enviar_notificacion(d):
-    """Manda un email avisando de un lead nuevo. Si no hay SMTP configurado, no hace nada."""
-    if not SMTP_USER or not SMTP_PASS:
-        return
+def _armar_email(d):
+    """Devuelve (asunto, html, texto) del aviso de lead."""
     wa = d["whatsapp"].replace(" ", "").replace("+", "")
-    msg = EmailMessage()
-    msg["Subject"] = f"🏗️ Nuevo lead: {d['nombre']}"
-    msg["From"] = SMTP_USER
-    msg["To"] = NOTIFY_EMAIL
-    if d.get("email"):
-        msg["Reply-To"] = d["email"]
-
+    asunto = f"🏗️ Nuevo lead: {d['nombre']}"
     texto = (
         f"Nuevo contacto desde la web de {EMPRESA}\n\n"
         f"Nombre: {d['nombre']}\n"
@@ -154,8 +151,7 @@ def enviar_notificacion(d):
         f"Zona: {d['zona']}\n"
         f"Comentario: {d['mensaje']}\n"
     )
-    msg.set_content(texto)
-    msg.add_alternative(f"""
+    html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e6eaee;border-radius:12px;overflow:hidden">
       <div style="background:#111418;color:#fff;padding:16px 20px;font-size:17px;font-weight:700">
         Nuevo lead — <span style="color:#29b6e8">{EMPRESA}</span>
@@ -173,13 +169,57 @@ def enviar_notificacion(d):
         <a href="https://wa.me/{wa}" style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700">Responder por WhatsApp</a>
       </div>
     </div>
-    """, subtype="html")
+    """
+    return asunto, html, texto
 
+
+def _enviar_resend(asunto, html, texto, reply_to=None):
+    payload = {
+        "from": EMAIL_FROM,
+        "to": [NOTIFY_EMAIL],
+        "subject": asunto,
+        "html": html,
+        "text": texto,
+    }
+    if reply_to:
+        payload["reply_to"] = reply_to
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return resp.read().decode("utf-8")
+
+
+def _enviar_smtp(asunto, html, texto, reply_to=None):
+    msg = EmailMessage()
+    msg["Subject"] = asunto
+    msg["From"] = SMTP_USER
+    msg["To"] = NOTIFY_EMAIL
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    msg.set_content(texto)
+    msg.add_alternative(html, subtype="html")
     with forzar_ipv4():
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
             s.starttls()
             s.login(SMTP_USER, SMTP_PASS)
             s.send_message(msg)
+
+
+def enviar_notificacion(d):
+    """Avisa por email de un lead nuevo. Usa Resend (HTTPS); SMTP solo de respaldo local."""
+    asunto, html, texto = _armar_email(d)
+    reply_to = d.get("email") or None
+    if RESEND_API_KEY:
+        _enviar_resend(asunto, html, texto, reply_to)
+    elif SMTP_USER and SMTP_PASS:
+        _enviar_smtp(asunto, html, texto, reply_to)
 
 
 # --- Rutas publicas ---------------------------------------------------------
@@ -242,28 +282,33 @@ def diag_email():
     if request.args.get("key") != "diag-bhd-2026":
         return "no autorizado", 403
     info = {
-        "smtp_user_cargado": bool(SMTP_USER),
-        "smtp_pass_cargado": bool(SMTP_PASS),
-        "smtp_pass_largo": len(SMTP_PASS),
-        "smtp_pass_tiene_espacios": " " in SMTP_PASS,
-        "host": SMTP_HOST,
-        "port": SMTP_PORT,
+        "resend_api_key_cargada": bool(RESEND_API_KEY),
+        "email_from": EMAIL_FROM,
         "notify_email": NOTIFY_EMAIL,
     }
+    if not RESEND_API_KEY:
+        info["resultado"] = "Falta cargar RESEND_API_KEY en Railway"
+        return info
     try:
-        with forzar_ipv4():
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-                s.starttls()
-                s.ehlo()
-                info["conexion"] = "OK (IPv4)"
-                if SMTP_USER and SMTP_PASS:
-                    s.login(SMTP_USER, SMTP_PASS)
-                    info["login"] = "OK"
-                    info["resultado"] = "Todo OK, el envío debería funcionar"
-                else:
-                    info["resultado"] = "La conexión anda, pero faltan cargar SMTP_USER/SMTP_PASS"
+        asunto, html, texto = _armar_email({
+            "nombre": "DIAGNÓSTICO", "whatsapp": "1130757520", "email": NOTIFY_EMAIL,
+            "busca": "-", "tipo_propiedad": "-", "zona": "-",
+            "mensaje": "Prueba de diagnóstico del envío de email",
+        })
+        respuesta = _enviar_resend(asunto, html, texto)
+        info["envio"] = "OK"
+        info["respuesta_resend"] = respuesta
+        info["resultado"] = "Email enviado. Revisá la casilla."
     except Exception as e:
+        cuerpo = ""
+        if hasattr(e, "read"):
+            try:
+                cuerpo = e.read().decode("utf-8")
+            except Exception:
+                pass
         info["error"] = repr(e)
+        if cuerpo:
+            info["detalle"] = cuerpo
     return info
 
 
