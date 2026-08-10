@@ -1,10 +1,27 @@
 import os
 import csv
 import io
+import socket
 import smtplib
+from contextlib import contextmanager
 from email.message import EmailMessage
 from datetime import datetime
 from functools import wraps
+
+
+@contextmanager
+def forzar_ipv4():
+    """Fuerza las conexiones a usar IPv4 (Railway no tiene ruta IPv6 para SMTP)."""
+    original = socket.getaddrinfo
+
+    def solo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+        return original(host, port, socket.AF_INET, type, proto, flags)
+
+    socket.getaddrinfo = solo_ipv4
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -158,10 +175,11 @@ def enviar_notificacion(d):
     </div>
     """, subtype="html")
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-        s.starttls()
-        s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
+    with forzar_ipv4():
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
 
 
 # --- Rutas publicas ---------------------------------------------------------
@@ -233,11 +251,17 @@ def diag_email():
         "notify_email": NOTIFY_EMAIL,
     }
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASS)
-            info["conexion_login"] = "OK"
-        info["resultado"] = "Credenciales válidas, el envío debería funcionar"
+        with forzar_ipv4():
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+                s.starttls()
+                s.ehlo()
+                info["conexion"] = "OK (IPv4)"
+                if SMTP_USER and SMTP_PASS:
+                    s.login(SMTP_USER, SMTP_PASS)
+                    info["login"] = "OK"
+                    info["resultado"] = "Todo OK, el envío debería funcionar"
+                else:
+                    info["resultado"] = "La conexión anda, pero faltan cargar SMTP_USER/SMTP_PASS"
     except Exception as e:
         info["error"] = repr(e)
     return info
