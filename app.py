@@ -218,6 +218,31 @@ def gracias():
     return render_template("gracias.html", empresa=EMPRESA, whatsapp=WHATSAPP_EMPRESA)
 
 
+@app.route("/diag-email")
+def diag_email():
+    # Ruta temporal de diagnostico. Se elimina despues de resolver el email.
+    if request.args.get("key") != "diag-bhd-2026":
+        return "no autorizado", 403
+    info = {
+        "smtp_user_cargado": bool(SMTP_USER),
+        "smtp_pass_cargado": bool(SMTP_PASS),
+        "smtp_pass_largo": len(SMTP_PASS),
+        "smtp_pass_tiene_espacios": " " in SMTP_PASS,
+        "host": SMTP_HOST,
+        "port": SMTP_PORT,
+        "notify_email": NOTIFY_EMAIL,
+    }
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASS)
+            info["conexion_login"] = "OK"
+        info["resultado"] = "Credenciales válidas, el envío debería funcionar"
+    except Exception as e:
+        info["error"] = repr(e)
+    return info
+
+
 # --- Admin ------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
