@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ empresa }} — Proyectos e inversión inmobiliaria</title>
+  <style>
+    :root{
+      --celeste:#29b6e8;
+      --celeste-osc:#1c9fd1;
+      --negro:#111418;
+      --negro-2:#1c2229;
+      --gris:#f5f7f9;
+      --texto:#1c2733;
+      --linea:#e6eaee;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--texto);background:#fff;line-height:1.6}
+    img{max-width:100%;display:block}
+    .container{max-width:1080px;margin:0 auto;padding:0 22px}
+
+    /* NAV */
+    nav{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--linea)}
+    nav .container{display:flex;align-items:center;justify-content:space-between;height:74px}
+    .logo-img{height:56px;width:auto}
+    .nav-links{display:flex;align-items:center}
+    .nav-links a{color:var(--negro);text-decoration:none;margin-left:26px;font-size:14px;font-weight:600}
+    .nav-links a:hover{color:var(--celeste)}
+    .nav-cta{background:var(--celeste);color:#fff!important;padding:10px 18px;border-radius:8px;font-weight:700}
+    .nav-cta:hover{background:var(--celeste-osc)}
+    @media(max-width:640px){.nav-links a:not(.nav-cta){display:none}.logo-img{height:48px}}
+
+    /* HERO */
+    .hero{position:relative;text-align:center;padding:96px 22px 100px;
+      background:radial-gradient(circle at 50% 0%,#eaf7fd 0%,#ffffff 60%)}
+    .hero .marca{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--celeste);font-weight:700}
+    .hero h1{font-size:44px;margin:16px 0 16px;font-weight:800;line-height:1.12;color:var(--negro);max-width:780px;margin-left:auto;margin-right:auto}
+    .hero h1 .c{color:var(--celeste)}
+    .hero p{font-size:18px;color:#556170;max-width:600px;margin:0 auto 32px}
+    .btn-hero{display:inline-block;background:var(--celeste);color:#fff;text-decoration:none;padding:15px 32px;border-radius:10px;font-weight:700;font-size:16px;box-shadow:0 8px 22px rgba(41,182,232,.35);transition:background .15s}
+    .btn-hero:hover{background:var(--celeste-osc)}
+    @media(max-width:640px){.hero{padding:64px 22px 72px}.hero h1{font-size:31px}.hero p{font-size:16px}}
+
+    /* SECCIONES */
+    section{padding:70px 0}
+    .titulo{text-align:center;margin-bottom:46px}
+    .titulo .kicker{color:var(--celeste);font-weight:700;font-size:13px;letter-spacing:2px;text-transform:uppercase}
+    .titulo h2{font-size:32px;color:var(--negro);margin-top:8px}
+    .titulo p{color:#5a6673;max-width:620px;margin:12px auto 0}
+
+    /* NOSOTROS */
+    .nosotros{background:var(--gris)}
+    .nosotros .lead{font-size:19px;max-width:760px;margin:0 auto;text-align:center;color:#33404d}
+    .stats{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:42px}
+    .stat{background:#fff;border-radius:14px;padding:28px 32px;text-align:center;min-width:150px;box-shadow:0 6px 20px rgba(17,20,24,.05);border-top:3px solid var(--celeste)}
+    .stat .num{font-size:36px;font-weight:800;color:var(--negro)}
+    .stat .lbl{font-size:14px;color:#5a6673;margin-top:4px}
+
+    /* PROYECTOS */
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+    .proyecto{border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 8px 26px rgba(17,20,24,.08);display:flex;flex-direction:column;border:1px solid var(--linea)}
+    .proyecto .foto{height:210px;background-size:cover;background-position:center;position:relative;
+      background-color:var(--negro-2)}
+    .estado{position:absolute;top:12px;left:12px;background:var(--negro);color:#fff;
+      padding:5px 13px;border-radius:20px;font-size:12px;font-weight:700}
+    .estado.pozo{background:var(--celeste)}
+    .proyecto .info{padding:20px 22px 24px;flex:1;display:flex;flex-direction:column}
+    .proyecto h3{color:var(--negro);font-size:20px}
+    .proyecto .ubi{color:var(--celeste);font-size:13px;font-weight:700;margin:5px 0 10px}
+    .proyecto p{color:#5a6673;font-size:14px;flex:1}
+
+    /* FORM / CONTACTO */
+    .contacto{background:var(--negro)}
+    .contacto .titulo h2{color:#fff}
+    .contacto .titulo p{color:rgba(255,255,255,.72)}
+    .form-card{background:#fff;color:var(--texto);border-radius:18px;max-width:560px;margin:0 auto;padding:30px;box-shadow:0 18px 50px rgba(0,0,0,.4)}
+    label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px;color:var(--negro)}
+    input[type=text],input[type=tel],input[type=email],select,textarea{
+      width:100%;padding:13px 14px;border:1.5px solid var(--linea);border-radius:10px;font-size:15px;font-family:inherit;background:#fff}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--celeste)}
+    textarea{resize:vertical;min-height:70px}
+    .opciones{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+    .opciones label{display:flex;align-items:center;gap:8px;margin:0;padding:13px;border:1.5px solid var(--linea);border-radius:10px;cursor:pointer;font-weight:500;font-size:14px}
+    .opciones label:has(input:checked){border-color:var(--celeste);background:#eaf7fd}
+    .opciones input{accent-color:var(--celeste)}
+    .btn{width:100%;margin-top:22px;padding:15px;border:none;border-radius:10px;background:var(--celeste);color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:background .15s}
+    .btn:hover{background:var(--celeste-osc)}
+    .req{color:#c0392b}
+    .nota{font-size:12px;color:#8a94a0;text-align:center;margin-top:14px}
+    .flash{background:#eaf7fd;color:#1c6a86;padding:10px 14px;border-radius:10px;font-size:14px;margin-bottom:14px}
+
+    /* FOOTER */
+    footer{background:var(--negro);color:#8ea1b8;text-align:center;padding:36px 22px;font-size:14px;border-top:1px solid rgba(255,255,255,.08)}
+    .foot-logo{font-weight:800;letter-spacing:1px;color:#fff;font-size:18px;margin-bottom:8px}
+    .foot-logo span{color:var(--celeste)}
+    footer a{color:var(--celeste);text-decoration:none}
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="container">
+      <a href="#top"><img src="/static/img/logo.png" alt="{{ empresa }}" class="logo-img"></a>
+      <div class="nav-links">
+        <a href="#nosotros">Nosotros</a>
+        <a href="#proyectos">Proyectos</a>
+        <a href="#contacto" class="nav-cta">Contactar</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero" id="top">
+    <div class="marca">{{ empresa }}</div>
+    <h1>Construimos el lugar donde vas a <span class="c">vivir o invertir</span></h1>
+    <p>{{ subtitulo }}</p>
+    <a href="#contacto" class="btn-hero">Quiero asesorarme</a>
+  </header>
+
+  <!-- NOSOTROS -->
+  <section class="nosotros" id="nosotros">
+    <div class="container">
+      <div class="titulo">
+        <div class="kicker">Quiénes somos</div>
+        <h2>Experiencia y confianza</h2>
+      </div>
+      <p class="lead">{{ nosotros }}</p>
+      <div class="stats">
+        {% for s in stats %}
+        <div class="stat">
+          <div class="num">{{ s.numero }}</div>
+          <div class="lbl">{{ s.texto }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- PROYECTOS -->
+  <section id="proyectos">
+    <div class="container">
+      <div class="titulo">
+        <div class="kicker">Nuestros desarrollos</div>
+        <h2>Proyectos</h2>
+        <p>Descubrí nuestras obras en pozo, en construcción y terminadas.</p>
+      </div>
+      <div class="grid">
+        {% for p in proyectos %}
+        <article class="proyecto">
+          <div class="foto" style="background-image:linear-gradient(rgba(17,20,24,.1),rgba(17,20,24,.3)),url('/static/{{ p.imagen }}')">
+            <span class="estado {% if 'pozo' in p.estado|lower %}pozo{% endif %}">{{ p.estado }}</span>
+          </div>
+          <div class="info">
+            <h3>{{ p.nombre }}</h3>
+            <div class="ubi">📍 {{ p.ubicacion }}</div>
+            <p>{{ p.descripcion }}</p>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACTO / FORM -->
+  <section class="contacto" id="contacto">
+    <div class="container">
+      <div class="titulo">
+        <div class="kicker">Dejanos tus datos</div>
+        <h2>Te asesoramos sin cargo</h2>
+        <p>Completá el formulario y un asesor se contacta con vos a la brevedad.</p>
+      </div>
+
+      <form class="form-card" action="/enviar" method="post">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}
+        {% endwith %}
+
+        <label>Nombre y apellido <span class="req">*</span></label>
+        <input type="text" name="nombre" required placeholder="Tu nombre">
+
+        <label>WhatsApp <span class="req">*</span></label>
+        <input type="tel" name="whatsapp" required placeholder="Ej: 11 5555 5555">
+
+        <label>Email <span class="req">*</span></label>
+        <input type="email" name="email" required placeholder="tu@email.com">
+
+        <label>¿Qué estás buscando?</label>
+        <div class="opciones">
+          <label><input type="radio" name="busca" value="Pozo (preventa)" checked> Invertir en pozo</label>
+          <label><input type="radio" name="busca" value="Propiedad terminada"> Propiedad terminada</label>
+        </div>
+
+        <label>Tipo de propiedad</label>
+        <select name="tipo_propiedad">
+          <option value="Departamento">Departamento</option>
+          <option value="Casa">Casa</option>
+          <option value="PH">PH</option>
+          <option value="Local comercial">Local comercial</option>
+          <option value="Terreno / Lote">Terreno / Lote</option>
+          <option value="Otro">Otro</option>
+        </select>
+
+        <label>¿En qué zona la buscás?</label>
+        <input type="text" name="zona" placeholder="Barrio, ciudad o zona">
+
+        <label>Comentario (opcional)</label>
+        <textarea name="mensaje" placeholder="Contanos qué estás buscando..."></textarea>
+
+        <button class="btn" type="submit">Quiero que me contacten</button>
+        <p class="nota">Tus datos son confidenciales. Te contactamos a la brevedad.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="foot-logo">BHD <span>CONSTRUCCIONES</span></div>
+    <div>© {{ empresa }} — Todos los derechos reservados</div>
+    {% if whatsapp %}<div style="margin-top:8px"><a href="https://wa.me/{{ whatsapp }}" target="_blank">Escribinos por WhatsApp</a></div>{% endif %}
+  </footer>
+
+</body>
+</html>

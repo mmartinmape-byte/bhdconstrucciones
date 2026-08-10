@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leads — {{ empresa }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f9;color:#1c2733}
+    header{background:#111418;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    header h1{font-size:18px}
+    header .total{color:#29b6e8;font-size:13px}
+    .acciones a{color:#fff;text-decoration:none;font-size:13px;margin-left:16px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px}
+    .acciones a.exp{background:#29b6e8;color:#fff;border-color:#29b6e8;font-weight:700}
+    .cont{padding:18px;overflow-x:auto}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(15,37,64,.06);min-width:820px}
+    th{background:#eef1f6;text-align:left;padding:12px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#5a6673}
+    td{padding:12px 14px;border-top:1px solid #eef1f6;font-size:14px;vertical-align:top}
+    tr:hover td{background:#fbfcfe}
+    .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600}
+    .pozo{background:#eaf7fd;color:#1c6a86}
+    .term{background:#eef1f6;color:#33404d}
+    a.wa{color:#128C7E;text-decoration:none;font-weight:600}
+    .vacio{text-align:center;padding:60px 20px;color:#8a94a0}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Leads recibidos</h1>
+      <span class="total">{{ leads|length }} contacto(s)</span>
+    </div>
+    <div class="acciones">
+      <a class="exp" href="/exportar">⬇ Exportar a Excel/CSV</a>
+      <a href="/logout">Salir</a>
+    </div>
+  </header>
+
+  <div class="cont">
+    {% if leads %}
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Nombre</th><th>WhatsApp</th><th>Email</th>
+          <th>Busca</th><th>Tipo</th><th>Zona</th><th>Comentario</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in leads %}
+        <tr>
+          <td>{{ l.creado.strftime('%d/%m/%Y %H:%M') if l.creado else '' }}</td>
+          <td><strong>{{ l.nombre }}</strong></td>
+          <td><a class="wa" href="https://wa.me/{{ l.whatsapp | replace(' ','') | replace('+','') }}" target="_blank">{{ l.whatsapp }}</a></td>
+          <td>{{ l.email }}</td>
+          <td>
+            {% if 'Pozo' in (l.busca or '') %}<span class="badge pozo">Pozo</span>
+            {% elif l.busca %}<span class="badge term">Terminada</span>{% endif %}
+          </td>
+          <td>{{ l.tipo_propiedad }}</td>
+          <td>{{ l.zona }}</td>
+          <td>{{ l.mensaje }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="vacio">Todavía no llegaron leads. Compartí el link en tu bio de Instagram 📲</div>
+    {% endif %}
+  </div>
+</body>
+</html>

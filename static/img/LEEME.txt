@@ -1,0 +1,5 @@
+Poné acá las fotos de los proyectos con estos nombres exactos:
+  - tigre.jpg   -> Dúplex en Tigre Centro
+  - munro.jpg   -> Edificio Munro
+Si no hay foto, se muestra un fondo oscuro automáticamente. No rompe nada.
+Podés poner varias fotos, pero la portada de cada tarjeta usa el nombre de arriba.
