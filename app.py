@@ -1,6 +1,8 @@
 import os
 import csv
 import io
+import smtplib
+from email.message import EmailMessage
 from datetime import datetime
 from functools import wraps
 
@@ -20,6 +22,14 @@ SUBTITULO = os.environ.get(
     "Dejanos tus datos y te asesoramos sin cargo sobre la propiedad ideal para vos."
 )
 WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491130757520")  # solo numeros, con codigo de pais
+
+# --- Aviso por email cuando entra un lead ---
+# Para que funcione hay que cargar SMTP_USER y SMTP_PASS en Railway (ver README).
+NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "mmartinmape@gmail.com")  # a donde llega el aviso
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")  # tu casilla que envia (ej: mmartinmape@gmail.com)
+SMTP_PASS = os.environ.get("SMTP_PASS", "")  # contraseña de aplicacion de Gmail (16 caracteres)
 
 # Texto de presentacion de la empresa
 NOSOTROS = os.environ.get(
@@ -105,6 +115,55 @@ def login_required(f):
     return wrapper
 
 
+def enviar_notificacion(d):
+    """Manda un email avisando de un lead nuevo. Si no hay SMTP configurado, no hace nada."""
+    if not SMTP_USER or not SMTP_PASS:
+        return
+    wa = d["whatsapp"].replace(" ", "").replace("+", "")
+    msg = EmailMessage()
+    msg["Subject"] = f"🏗️ Nuevo lead: {d['nombre']}"
+    msg["From"] = SMTP_USER
+    msg["To"] = NOTIFY_EMAIL
+    if d.get("email"):
+        msg["Reply-To"] = d["email"]
+
+    texto = (
+        f"Nuevo contacto desde la web de {EMPRESA}\n\n"
+        f"Nombre: {d['nombre']}\n"
+        f"WhatsApp: {d['whatsapp']}\n"
+        f"Email: {d['email']}\n"
+        f"Busca: {d['busca']}\n"
+        f"Tipo de propiedad: {d['tipo_propiedad']}\n"
+        f"Zona: {d['zona']}\n"
+        f"Comentario: {d['mensaje']}\n"
+    )
+    msg.set_content(texto)
+    msg.add_alternative(f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e6eaee;border-radius:12px;overflow:hidden">
+      <div style="background:#111418;color:#fff;padding:16px 20px;font-size:17px;font-weight:700">
+        Nuevo lead — <span style="color:#29b6e8">{EMPRESA}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:15px;color:#1c2733">
+        <tr><td style="padding:10px 20px;color:#8a94a0;width:150px">Nombre</td><td style="padding:10px 20px;font-weight:600">{d['nombre']}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">WhatsApp</td><td style="padding:10px 20px"><a href="https://wa.me/{wa}" style="color:#128C7E;font-weight:600">{d['whatsapp']}</a></td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Email</td><td style="padding:10px 20px"><a href="mailto:{d['email']}" style="color:#29b6e8">{d['email']}</a></td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Busca</td><td style="padding:10px 20px">{d['busca']}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Tipo</td><td style="padding:10px 20px">{d['tipo_propiedad']}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Zona</td><td style="padding:10px 20px">{d['zona']}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Comentario</td><td style="padding:10px 20px">{d['mensaje']}</td></tr>
+      </table>
+      <div style="padding:16px 20px">
+        <a href="https://wa.me/{wa}" style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700">Responder por WhatsApp</a>
+      </div>
+    </div>
+    """, subtype="html")
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+        s.starttls()
+        s.login(SMTP_USER, SMTP_PASS)
+        s.send_message(msg)
+
+
 # --- Rutas publicas ---------------------------------------------------------
 @app.route("/")
 def index():
@@ -137,8 +196,20 @@ def enviar():
             return redirect(url_for("index"))
         db.add(lead)
         db.commit()
+        datos = {
+            "nombre": lead.nombre, "whatsapp": lead.whatsapp, "email": lead.email,
+            "busca": lead.busca, "tipo_propiedad": lead.tipo_propiedad,
+            "zona": lead.zona, "mensaje": lead.mensaje,
+        }
     finally:
         db.close()
+
+    # aviso por email (no debe frenar la respuesta al usuario si algo falla)
+    try:
+        enviar_notificacion(datos)
+    except Exception as e:
+        app.logger.warning("No se pudo enviar el email de aviso: %s", e)
+
     return redirect(url_for("gracias"))
 
 

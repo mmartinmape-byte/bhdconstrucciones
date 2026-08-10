@@ -24,6 +24,16 @@ Los leads se guardan en base de datos y se ven en un panel `/admin` (exportable 
 | `ADMIN_PASSWORD` | Clave del panel `/admin` | (poné una segura) |
 | `SECRET_KEY` | Seguridad de sesión | (texto largo al azar) |
 | `DATABASE_URL` | La crea Railway al agregar PostgreSQL | (automática) |
+| `SMTP_USER` | Casilla Gmail que envía el aviso | `mmartinmape@gmail.com` |
+| `SMTP_PASS` | Contraseña de aplicación de Gmail (16 caracteres) | (ver abajo) |
+| `NOTIFY_EMAIL` | A dónde llega el aviso de lead nuevo | `mmartinmape@gmail.com` |
+
+## Aviso por email al recibir un lead
+El sistema manda un mail a `NOTIFY_EMAIL` cada vez que entra un lead. Para activarlo con Gmail:
+1. En tu Cuenta de Google → **Seguridad** → activá la **Verificación en 2 pasos** (si no está).
+2. Entrá a **myaccount.google.com/apppasswords**, creá una "Contraseña de aplicación" (te da 16 letras).
+3. En Railway (servicio de la web → Variables) cargá `SMTP_USER` (tu Gmail) y `SMTP_PASS` (esas 16 letras).
+Si estas variables no están cargadas, la web funciona igual pero no manda el aviso.
 
 ## Probar en tu compu
 ```bash
