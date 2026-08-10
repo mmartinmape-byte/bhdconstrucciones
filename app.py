@@ -5,6 +5,7 @@ import json
 import socket
 import smtplib
 import urllib.request
+import urllib.parse
 from contextlib import contextmanager
 from email.message import EmailMessage
 from datetime import datetime
@@ -47,6 +48,9 @@ WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491130757520")  # solo n
 NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "mmartinmape@gmail.com")  # a donde llega el aviso
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")  # clave de resend.com
 EMAIL_FROM = os.environ.get("EMAIL_FROM", "BHD CONSTRUCCIONES <onboarding@resend.dev>")
+# Aviso por WhatsApp (CallMeBot). Cargar CALLMEBOT_APIKEY en Railway.
+CALLMEBOT_APIKEY = os.environ.get("CALLMEBOT_APIKEY", "")
+CALLMEBOT_PHONE = os.environ.get("CALLMEBOT_PHONE", WHATSAPP_EMPRESA)  # a que numero llega el aviso
 # SMTP (solo para uso local; en Railway no funciona por bloqueo de puertos)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
@@ -222,6 +226,28 @@ def enviar_notificacion(d):
         _enviar_smtp(asunto, html, texto, reply_to)
 
 
+def enviar_whatsapp(d):
+    """Avisa por WhatsApp de un lead nuevo usando CallMeBot (HTTPS)."""
+    if not CALLMEBOT_APIKEY:
+        return
+    texto = (
+        f"🏗️ Nuevo lead - {EMPRESA}\n"
+        f"Nombre: {d['nombre']}\n"
+        f"WhatsApp: {d['whatsapp']}\n"
+        f"Email: {d['email']}\n"
+        f"Busca: {d['busca']} ({d['tipo_propiedad']})\n"
+        f"Zona: {d['zona']}\n"
+        f"Comentario: {d['mensaje']}"
+    )
+    url = "https://api.callmebot.com/whatsapp.php?" + urllib.parse.urlencode({
+        "phone": CALLMEBOT_PHONE,
+        "text": texto,
+        "apikey": CALLMEBOT_APIKEY,
+    })
+    with urllib.request.urlopen(url, timeout=20) as resp:
+        return resp.read().decode("utf-8", "ignore")
+
+
 # --- Rutas publicas ---------------------------------------------------------
 @app.route("/")
 def index():
@@ -262,11 +288,15 @@ def enviar():
     finally:
         db.close()
 
-    # aviso por email (no debe frenar la respuesta al usuario si algo falla)
+    # avisos (no deben frenar la respuesta al usuario si algo falla)
     try:
         enviar_notificacion(datos)
     except Exception as e:
         app.logger.warning("No se pudo enviar el email de aviso: %s", e)
+    try:
+        enviar_whatsapp(datos)
+    except Exception as e:
+        app.logger.warning("No se pudo enviar el WhatsApp de aviso: %s", e)
 
     return redirect(url_for("gracias"))
 
@@ -281,6 +311,30 @@ def diag_email():
     # Ruta temporal de diagnostico. Se elimina despues de resolver el email.
     if request.args.get("key") != "diag-bhd-2026":
         return "no autorizado", 403
+
+    datos_prueba = {
+        "nombre": "DIAGNÓSTICO", "whatsapp": "1130757520", "email": NOTIFY_EMAIL,
+        "busca": "-", "tipo_propiedad": "-", "zona": "-",
+        "mensaje": "Prueba de diagnóstico del aviso",
+    }
+
+    # Diagnostico de WhatsApp (CallMeBot)
+    if request.args.get("canal") == "whatsapp":
+        info = {
+            "callmebot_apikey_cargada": bool(CALLMEBOT_APIKEY),
+            "callmebot_phone": CALLMEBOT_PHONE,
+        }
+        if not CALLMEBOT_APIKEY:
+            info["resultado"] = "Falta cargar CALLMEBOT_APIKEY en Railway"
+            return info
+        try:
+            info["respuesta_callmebot"] = enviar_whatsapp(datos_prueba)
+            info["resultado"] = "Mensaje enviado. Revisá tu WhatsApp."
+        except Exception as e:
+            info["error"] = repr(e)
+        return info
+
+    # Diagnostico de email (Resend)
     info = {
         "resend_api_key_cargada": bool(RESEND_API_KEY),
         "email_from": EMAIL_FROM,
