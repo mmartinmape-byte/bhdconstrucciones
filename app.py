@@ -288,7 +288,20 @@ def enviar():
     finally:
         db.close()
 
-    # avisos (no deben frenar la respuesta al usuario si algo falla)
+    # armar el mensaje de WhatsApp que el cliente enviara a la empresa
+    partes = [
+        f"¡Hola {EMPRESA}! Completé el formulario en la web y quiero más información.",
+        "",
+        f"Nombre: {datos['nombre']}",
+        f"Busco: {datos['busca']} ({datos['tipo_propiedad']})",
+    ]
+    if datos["zona"]:
+        partes.append(f"Zona: {datos['zona']}")
+    if datos["mensaje"]:
+        partes.append(f"Comentario: {datos['mensaje']}")
+    session["wa_texto"] = "\n".join(partes)
+
+    # avisos internos opcionales (solo si estan configurados; no frenan la respuesta)
     try:
         enviar_notificacion(datos)
     except Exception as e:
@@ -303,7 +316,13 @@ def enviar():
 
 @app.route("/gracias")
 def gracias():
-    return render_template("gracias.html", empresa=EMPRESA, whatsapp=WHATSAPP_EMPRESA)
+    wa_texto = session.pop("wa_texto", "") or \
+        f"¡Hola {EMPRESA}! Quiero más información sobre las propiedades."
+    wa_link = ""
+    if WHATSAPP_EMPRESA:
+        wa_link = "https://wa.me/" + WHATSAPP_EMPRESA + "?text=" + urllib.parse.quote(wa_texto)
+    return render_template("gracias.html", empresa=EMPRESA,
+                           whatsapp=WHATSAPP_EMPRESA, wa_link=wa_link)
 
 
 @app.route("/diag-email")
