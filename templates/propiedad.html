@@ -24,12 +24,37 @@
     .precio{font-size:30px;font-weight:800;color:var(--negro);white-space:nowrap}
     .estado{display:inline-block;background:var(--negro);color:#fff;padding:5px 13px;border-radius:20px;font-size:12px;font-weight:700;margin-left:8px;vertical-align:middle}
     .estado.disp{background:var(--celeste)}
-    /* galería */
-    .galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:8px 0 28px}
-    .galeria .g0{grid-column:1/-1}
-    .galeria img{width:100%;height:100%;max-height:520px;object-fit:cover;border-radius:14px;background:#eef1f6}
-    .galeria .g0 img{max-height:480px}
+    /* galería - una foto a la vez, respetando el formato */
+    .galeria{margin:8px 0 28px}
+    .visor{position:relative;background:#f0f2f5;border-radius:16px;overflow:hidden;
+      display:flex;align-items:center;justify-content:center;min-height:320px;max-height:70vh}
+    .visor img{max-width:100%;max-height:70vh;width:auto;height:auto;object-fit:contain;display:block;cursor:zoom-in}
+    .flecha{position:absolute;top:50%;transform:translateY(-50%);background:rgba(17,20,24,.55);color:#fff;
+      border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;
+      align-items:center;justify-content:center;transition:background .15s;z-index:2}
+    .flecha:hover{background:rgba(17,20,24,.85)}
+    .flecha.izq{left:12px}.flecha.der{right:12px}
+    .contador{position:absolute;bottom:12px;right:14px;background:rgba(17,20,24,.6);color:#fff;
+      font-size:13px;font-weight:600;padding:4px 11px;border-radius:20px;z-index:2}
+    .zoom-hint{position:absolute;bottom:12px;left:14px;background:rgba(17,20,24,.6);color:#fff;
+      font-size:12px;padding:4px 11px;border-radius:20px;z-index:2;pointer-events:none}
+    .miniaturas{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+    .miniaturas img{width:88px;height:66px;object-fit:cover;border-radius:9px;cursor:pointer;
+      flex:0 0 auto;border:3px solid transparent;background:#eef1f6;opacity:.7;transition:opacity .15s,border-color .15s}
+    .miniaturas img.activa{border-color:var(--celeste);opacity:1}
+    .miniaturas img:hover{opacity:1}
     .sinfoto{background:linear-gradient(135deg,#1c2229,#29b6e8);border-radius:16px;height:280px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;margin-bottom:28px}
+    /* lightbox (agrandar) */
+    .lightbox{position:fixed;inset:0;background:rgba(10,12,15,.94);z-index:100;display:none;
+      align-items:center;justify-content:center}
+    .lightbox.abierto{display:flex}
+    .lightbox img{max-width:94vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:6px}
+    .lb-cerrar{position:absolute;top:18px;right:24px;background:none;border:none;color:#fff;font-size:40px;cursor:pointer;line-height:1;z-index:2}
+    .lb-flecha{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);color:#fff;
+      border:none;width:54px;height:54px;border-radius:50%;font-size:28px;cursor:pointer;z-index:2}
+    .lb-flecha:hover{background:rgba(255,255,255,.25)}
+    .lb-flecha.izq{left:20px}.lb-flecha.der{right:20px}
+    .lb-contador{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;font-weight:600}
     /* datos */
     .datos{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:26px}
     .dato{background:var(--gris);border-radius:12px;padding:14px 18px;min-width:120px;border-top:3px solid var(--celeste)}
@@ -67,10 +92,58 @@
 
       {% if inm.fotos %}
       <div class="galeria">
-        {% for fid in inm.fotos %}
-        <div class="{% if loop.first %}g0{% endif %}"><img src="/foto/{{ fid }}" alt="{{ inm.titulo }}"></div>
-        {% endfor %}
+        <div class="visor">
+          {% if inm.fotos|length > 1 %}<button class="flecha izq" onclick="cambiar(-1)" aria-label="Anterior">‹</button>{% endif %}
+          <img id="foto-principal" src="/foto/{{ inm.fotos[0] }}" alt="{{ inm.titulo }}" onclick="abrirLightbox()">
+          {% if inm.fotos|length > 1 %}<button class="flecha der" onclick="cambiar(1)" aria-label="Siguiente">›</button>{% endif %}
+          <span class="zoom-hint">🔍 Tocá para agrandar</span>
+          {% if inm.fotos|length > 1 %}<span class="contador"><span id="idx-actual">1</span> / {{ inm.fotos|length }}</span>{% endif %}
+        </div>
+        {% if inm.fotos|length > 1 %}
+        <div class="miniaturas" id="miniaturas">
+          {% for fid in inm.fotos %}
+          <img src="/foto/{{ fid }}" data-i="{{ loop.index0 }}" class="{% if loop.first %}activa{% endif %}" onclick="irA({{ loop.index0 }})" alt="">
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
+
+      <!-- lightbox para agrandar -->
+      <div class="lightbox" id="lightbox">
+        <button class="lb-cerrar" onclick="cerrarLightbox()" aria-label="Cerrar">×</button>
+        {% if inm.fotos|length > 1 %}<button class="lb-flecha izq" onclick="event.stopPropagation();cambiar(-1)">‹</button>{% endif %}
+        <img id="lb-img" src="" alt="{{ inm.titulo }}">
+        {% if inm.fotos|length > 1 %}<button class="lb-flecha der" onclick="event.stopPropagation();cambiar(1)">›</button>{% endif %}
+        {% if inm.fotos|length > 1 %}<div class="lb-contador"><span id="lb-idx">1</span> / {{ inm.fotos|length }}</div>{% endif %}
+      </div>
+
+      <script>
+        var FOTOS = [{% for fid in inm.fotos %}"/foto/{{ fid }}"{% if not loop.last %},{% endif %}{% endfor %}];
+        var actual = 0;
+        function render(){
+          document.getElementById('foto-principal').src = FOTOS[actual];
+          var lb = document.getElementById('lb-img'); if(lb) lb.src = FOTOS[actual];
+          var ia = document.getElementById('idx-actual'); if(ia) ia.textContent = actual+1;
+          var li = document.getElementById('lb-idx'); if(li) li.textContent = actual+1;
+          var mins = document.querySelectorAll('#miniaturas img');
+          mins.forEach(function(m){ m.classList.toggle('activa', +m.dataset.i === actual); });
+          var act = document.querySelector('#miniaturas img.activa');
+          if(act && act.scrollIntoView) act.scrollIntoView({block:'nearest', inline:'center'});
+        }
+        function cambiar(d){ actual = (actual + d + FOTOS.length) % FOTOS.length; render(); }
+        function irA(i){ actual = i; render(); }
+        function abrirLightbox(){ document.getElementById('lightbox').classList.add('abierto'); render(); }
+        function cerrarLightbox(){ document.getElementById('lightbox').classList.remove('abierto'); }
+        document.getElementById('lightbox').addEventListener('click', function(e){
+          if(e.target === this) cerrarLightbox();
+        });
+        document.addEventListener('keydown', function(e){
+          if(!document.getElementById('lightbox').classList.contains('abierto')) return;
+          if(e.key === 'Escape') cerrarLightbox();
+          else if(e.key === 'ArrowLeft') cambiar(-1);
+          else if(e.key === 'ArrowRight') cambiar(1);
+        });
+      </script>
       {% else %}
       <div class="sinfoto">{{ empresa }}</div>
       {% endif %}
