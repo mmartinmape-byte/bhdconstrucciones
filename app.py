@@ -146,6 +146,7 @@ class Inmueble(Base):
     precio = Column(Integer, default=0)
     moneda = Column(String(10), default="USD")           # USD / ARS
     ubicacion = Column(String(160), default="")
+    direccion_mapa = Column(String(250), default="")     # dirección exacta opcional para el mapa
     ambientes = Column(String(20), default="")
     dormitorios = Column(String(20), default="")
     banos = Column(String(20), default="")
@@ -176,6 +177,24 @@ class InmuebleFoto(Base):
 
 
 Base.metadata.create_all(engine)
+
+
+def _migrar_columnas():
+    """Agrega columnas nuevas a tablas ya existentes (create_all no las agrega)."""
+    from sqlalchemy import inspect, text as _sql_text
+    try:
+        insp = inspect(engine)
+        cols = {c["name"] for c in insp.get_columns("inmuebles")}
+        if "direccion_mapa" not in cols:
+            with engine.begin() as conn:
+                conn.execute(_sql_text(
+                    "ALTER TABLE inmuebles ADD COLUMN direccion_mapa VARCHAR(250) DEFAULT ''"
+                ))
+    except Exception as e:
+        print("Aviso migración inmuebles:", e)
+
+
+_migrar_columnas()
 
 # Límite de subida (varias fotos por propiedad)
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024  # 40 MB por request
@@ -341,6 +360,8 @@ def _inmueble_dict(inm):
         "precio": inm.precio or 0,
         "moneda": inm.moneda,
         "ubicacion": inm.ubicacion,
+        "direccion_mapa": inm.direccion_mapa or "",
+        "mapa_query": (inm.direccion_mapa or inm.ubicacion or "").strip(),
         "ambientes": inm.ambientes,
         "dormitorios": inm.dormitorios,
         "banos": inm.banos,
@@ -368,6 +389,7 @@ def _leer_form_inmueble(form):
         "precio": num(form.get("precio")),
         "moneda": form.get("moneda", "USD").strip() or "USD",
         "ubicacion": form.get("ubicacion", "").strip(),
+        "direccion_mapa": form.get("direccion_mapa", "").strip(),
         "ambientes": form.get("ambientes", "").strip(),
         "dormitorios": form.get("dormitorios", "").strip(),
         "banos": form.get("banos", "").strip(),

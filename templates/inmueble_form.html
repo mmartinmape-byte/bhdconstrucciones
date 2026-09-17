@@ -84,6 +84,10 @@
       <label>Ubicación</label>
       <input type="text" name="ubicacion" placeholder="Barrio, ciudad" value="{{ inm.ubicacion if inm else '' }}">
 
+      <label>Dirección exacta para el mapa <span style="color:#8a94a0;font-weight:400">(opcional)</span></label>
+      <input type="text" name="direccion_mapa" placeholder="Ej: Av. Mitre 2500, Munro" value="{{ inm.direccion_mapa if inm else '' }}">
+      <div class="hint">Si la dejás vacía, el mapa usa la ubicación general de arriba. Poné calle y número para un pin exacto.</div>
+
       <div class="row3">
         <div><label>Ambientes</label><input type="text" name="ambientes" placeholder="3" value="{{ inm.ambientes if inm else '' }}"></div>
         <div><label>Dormitorios</label><input type="text" name="dormitorios" placeholder="2" value="{{ inm.dormitorios if inm else '' }}"></div>
