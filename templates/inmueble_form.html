@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ 'Nueva propiedad' if nuevo else 'Editar propiedad' }} — {{ empresa }}</title>
+  <style>
+    :root{--celeste:#29b6e8;--negro:#111418;--linea:#e6eaee}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f9;color:#1c2733}
+    header{background:#111418;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
+    header h1{font-size:18px}
+    header a{color:#fff;text-decoration:none;font-size:13px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px}
+    .cont{max-width:760px;margin:22px auto;padding:0 18px}
+    .card{background:#fff;border-radius:14px;padding:26px;box-shadow:0 4px 14px rgba(15,37,64,.06)}
+    label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px;color:var(--negro)}
+    input[type=text],input[type=number],select,textarea{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:10px;font-size:15px;font-family:inherit;background:#fff}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--celeste)}
+    textarea{resize:vertical;min-height:90px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .checks{display:flex;gap:22px;flex-wrap:wrap;margin-top:14px}
+    .checks label{display:flex;align-items:center;gap:8px;margin:0;font-weight:600;cursor:pointer}
+    .checks input{width:18px;height:18px;accent-color:var(--celeste)}
+    .precio-row{display:grid;grid-template-columns:1fr 120px;gap:14px}
+    .fotos-actuales{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+    .fa{position:relative}
+    .fa img{width:110px;height:82px;object-fit:cover;border-radius:10px;background:#eef1f6}
+    .fa button{position:absolute;top:-8px;right:-8px;background:#c0392b;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;font-weight:700;line-height:1}
+    .hint{font-size:12px;color:#8a94a0;margin-top:6px}
+    .btn{margin-top:24px;padding:14px;border:none;border-radius:10px;background:var(--celeste);color:#fff;font-size:16px;font-weight:700;cursor:pointer;width:100%}
+    .btn:hover{background:#1c9fd1}
+    .flash{background:#f8d7da;color:#721c24;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+    .filebox{border:2px dashed var(--linea);border-radius:12px;padding:18px;text-align:center;background:#fafcfe}
+    .filebox input{border:none;width:100%}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ 'Nueva propiedad' if nuevo else 'Editar propiedad' }}</h1>
+    <a href="/admin/inmuebles">← Volver</a>
+  </header>
+
+  <div class="cont">
+    <form class="card" method="post" enctype="multipart/form-data"
+          action="{{ '/admin/inmuebles/nuevo' if nuevo else '/admin/inmuebles/' ~ inm.id ~ '/editar' }}">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}
+      {% endwith %}
+
+      <label>Título *</label>
+      <input type="text" name="titulo" required placeholder="Ej: Departamento 3 amb con cochera" value="{{ inm.titulo if inm else '' }}">
+
+      <div class="row3">
+        <div>
+          <label>Operación</label>
+          <select name="operacion">
+            {% for o in ['Venta','Alquiler'] %}<option {{ 'selected' if inm and inm.operacion==o else '' }}>{{ o }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select name="tipo">
+            {% for t in ['Departamento','Casa','PH','Lote / Terreno','Local comercial','Oficina','Otro'] %}<option {{ 'selected' if inm and inm.tipo==t else '' }}>{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Estado</label>
+          <select name="estado">
+            {% for e in ['Disponible','Reservado','Vendido'] %}<option {{ 'selected' if inm and inm.estado==e else '' }}>{{ e }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <label>Precio</label>
+      <div class="precio-row">
+        <input type="number" name="precio" min="0" step="1" placeholder="Ej: 120000" value="{{ inm.precio if inm and inm.precio else '' }}">
+        <select name="moneda">
+          {% for m in ['USD','ARS'] %}<option {{ 'selected' if inm and inm.moneda==m else '' }}>{{ m }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="hint">Dejalo vacío para mostrar "Consultar".</div>
+
+      <label>Ubicación</label>
+      <input type="text" name="ubicacion" placeholder="Barrio, ciudad" value="{{ inm.ubicacion if inm else '' }}">
+
+      <div class="row3">
+        <div><label>Ambientes</label><input type="text" name="ambientes" placeholder="3" value="{{ inm.ambientes if inm else '' }}"></div>
+        <div><label>Dormitorios</label><input type="text" name="dormitorios" placeholder="2" value="{{ inm.dormitorios if inm else '' }}"></div>
+        <div><label>Baños</label><input type="text" name="banos" placeholder="1" value="{{ inm.banos if inm else '' }}"></div>
+      </div>
+
+      <label>Superficie (m²)</label>
+      <input type="text" name="m2" placeholder="70" value="{{ inm.m2 if inm else '' }}">
+
+      <label>Descripción</label>
+      <textarea name="descripcion" placeholder="Detalles de la propiedad...">{{ inm.descripcion if inm else '' }}</textarea>
+
+      <div class="checks">
+        <label><input type="checkbox" name="cochera" {{ 'checked' if inm and inm.cochera else '' }}> Cochera</label>
+        <label><input type="checkbox" name="destacado" {{ 'checked' if inm and inm.destacado else '' }}> Destacado</label>
+        <label><input type="checkbox" name="publicado" {{ 'checked' if (inm and inm.publicado) or nuevo else '' }}> Publicada (visible en la web)</label>
+      </div>
+
+      {% if inm and inm.fotos %}
+      <label>Fotos actuales</label>
+      <div class="fotos-actuales">
+        {% for fid in inm.fotos %}
+        <div class="fa">
+          <img src="/foto/{{ fid }}">
+          <button type="button" title="Borrar foto"
+            onclick="if(confirm('¿Borrar esta foto?')){document.getElementById('delfoto-{{ fid }}').submit();}">✕</button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <label>{{ 'Agregar fotos' if inm and inm.fotos else 'Fotos' }}</label>
+      <div class="filebox">
+        <input type="file" name="fotos" accept="image/*" multiple>
+        <div class="hint">Podés elegir varias a la vez. Se ajustan y comprimen solas.</div>
+      </div>
+
+      <button class="btn" type="submit">{{ 'Crear propiedad' if nuevo else 'Guardar cambios' }}</button>
+    </form>
+
+    {% if inm and inm.fotos %}
+      {% for fid in inm.fotos %}
+      <form id="delfoto-{{ fid }}" method="post" action="/admin/foto/{{ fid }}/borrar" style="display:none"></form>
+      {% endfor %}
+    {% endif %}
+  </div>
+</body>
+</html>

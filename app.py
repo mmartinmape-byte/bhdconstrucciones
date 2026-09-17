@@ -28,10 +28,18 @@ def forzar_ipv4():
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, Response, flash
+    session, Response, flash, abort
 )
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import (
+    create_engine, Column, Integer, String, Text, DateTime,
+    Boolean, LargeBinary, ForeignKey
+)
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+
+try:
+    from PIL import Image  # para redimensionar/comprimir las fotos antes de guardarlas
+except Exception:
+    Image = None
 
 # ---------------------------------------------------------------------------
 # CONFIGURACION - Editá estos valores para tu constructora
@@ -128,7 +136,49 @@ class Lead(Base):
     creado = Column(DateTime, default=datetime.utcnow)
 
 
+class Inmueble(Base):
+    __tablename__ = "inmuebles"
+
+    id = Column(Integer, primary_key=True)
+    titulo = Column(String(160), nullable=False)
+    operacion = Column(String(30), default="Venta")     # Venta / Alquiler
+    tipo = Column(String(40), default="Departamento")    # Departamento, Casa, PH, Lote, Local
+    precio = Column(Integer, default=0)
+    moneda = Column(String(10), default="USD")           # USD / ARS
+    ubicacion = Column(String(160), default="")
+    ambientes = Column(String(20), default="")
+    dormitorios = Column(String(20), default="")
+    banos = Column(String(20), default="")
+    m2 = Column(String(30), default="")
+    cochera = Column(Boolean, default=False)
+    estado = Column(String(30), default="Disponible")    # Disponible / Reservado / Vendido
+    descripcion = Column(Text, default="")
+    destacado = Column(Boolean, default=False)
+    publicado = Column(Boolean, default=True)
+    creado = Column(DateTime, default=datetime.utcnow)
+
+    fotos = relationship(
+        "InmuebleFoto", back_populates="inmueble",
+        cascade="all, delete-orphan", order_by="InmuebleFoto.orden",
+    )
+
+
+class InmuebleFoto(Base):
+    __tablename__ = "inmueble_fotos"
+
+    id = Column(Integer, primary_key=True)
+    inmueble_id = Column(Integer, ForeignKey("inmuebles.id", ondelete="CASCADE"), nullable=False)
+    datos = Column(LargeBinary, nullable=False)
+    mimetype = Column(String(60), default="image/jpeg")
+    orden = Column(Integer, default=0)
+
+    inmueble = relationship("Inmueble", back_populates="fotos")
+
+
 Base.metadata.create_all(engine)
+
+# Límite de subida (varias fotos por propiedad)
+app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024  # 40 MB por request
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -248,9 +298,100 @@ def enviar_whatsapp(d):
         return resp.read().decode("utf-8", "ignore")
 
 
+# --- Helpers de inmuebles ---------------------------------------------------
+def _procesar_imagen(raw, mimetype):
+    """Redimensiona y comprime una imagen para no guardar archivos enormes en la BD.
+    Si Pillow no está disponible, guarda el archivo tal cual."""
+    if not Image:
+        return raw, (mimetype or "image/jpeg")
+    try:
+        im = Image.open(io.BytesIO(raw))
+        im = im.convert("RGB")
+        max_lado = 1600
+        if max(im.size) > max_lado:
+            im.thumbnail((max_lado, max_lado))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=82, optimize=True)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return raw, (mimetype or "image/jpeg")
+
+
+def _guardar_fotos(db, inmueble, files):
+    """Guarda las fotos subidas (lista de FileStorage) asociadas al inmueble."""
+    orden = max([f.orden for f in inmueble.fotos], default=-1) + 1
+    for f in files:
+        if not f or not getattr(f, "filename", ""):
+            continue
+        raw = f.read()
+        if not raw:
+            continue
+        datos, mt = _procesar_imagen(raw, f.mimetype)
+        db.add(InmuebleFoto(inmueble_id=inmueble.id, datos=datos, mimetype=mt, orden=orden))
+        orden += 1
+
+
+def _inmueble_dict(inm):
+    """Serializa un inmueble (con los ids de sus fotos) para el template."""
+    return {
+        "id": inm.id,
+        "titulo": inm.titulo,
+        "operacion": inm.operacion,
+        "tipo": inm.tipo,
+        "precio": inm.precio or 0,
+        "moneda": inm.moneda,
+        "ubicacion": inm.ubicacion,
+        "ambientes": inm.ambientes,
+        "dormitorios": inm.dormitorios,
+        "banos": inm.banos,
+        "m2": inm.m2,
+        "cochera": inm.cochera,
+        "estado": inm.estado,
+        "descripcion": inm.descripcion,
+        "destacado": inm.destacado,
+        "publicado": inm.publicado,
+        "fotos": [f.id for f in inm.fotos],
+    }
+
+
+def _leer_form_inmueble(form):
+    """Toma los campos del formulario del admin y los normaliza."""
+    def num(v):
+        try:
+            return int(float(str(v).replace(".", "").replace(",", "").strip() or 0))
+        except (TypeError, ValueError):
+            return 0
+    return {
+        "titulo": form.get("titulo", "").strip(),
+        "operacion": form.get("operacion", "Venta").strip() or "Venta",
+        "tipo": form.get("tipo", "Departamento").strip() or "Departamento",
+        "precio": num(form.get("precio")),
+        "moneda": form.get("moneda", "USD").strip() or "USD",
+        "ubicacion": form.get("ubicacion", "").strip(),
+        "ambientes": form.get("ambientes", "").strip(),
+        "dormitorios": form.get("dormitorios", "").strip(),
+        "banos": form.get("banos", "").strip(),
+        "m2": form.get("m2", "").strip(),
+        "cochera": form.get("cochera") == "on",
+        "estado": form.get("estado", "Disponible").strip() or "Disponible",
+        "descripcion": form.get("descripcion", "").strip(),
+        "destacado": form.get("destacado") == "on",
+        "publicado": form.get("publicado") == "on",
+    }
+
+
 # --- Rutas publicas ---------------------------------------------------------
 @app.route("/")
 def index():
+    db = SessionLocal()
+    try:
+        inms = (db.query(Inmueble)
+                  .filter(Inmueble.publicado == True)  # noqa: E712
+                  .order_by(Inmueble.destacado.desc(), Inmueble.creado.desc())
+                  .all())
+        inmuebles = [_inmueble_dict(i) for i in inms]
+    finally:
+        db.close()
     return render_template(
         "index.html",
         empresa=EMPRESA,
@@ -258,8 +399,42 @@ def index():
         nosotros=NOSOTROS,
         stats=STATS,
         proyectos=PROYECTOS,
+        inmuebles=inmuebles,
         whatsapp=WHATSAPP_EMPRESA,
     )
+
+
+@app.route("/foto/<int:foto_id>")
+def foto(foto_id):
+    db = SessionLocal()
+    try:
+        f = db.get(InmuebleFoto, foto_id)
+        if not f:
+            abort(404)
+        datos, mt = f.datos, f.mimetype or "image/jpeg"
+    finally:
+        db.close()
+    return Response(datos, mimetype=mt, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.route("/propiedad/<int:inm_id>")
+def propiedad(inm_id):
+    db = SessionLocal()
+    try:
+        inm = db.get(Inmueble, inm_id)
+        if not inm or not inm.publicado:
+            abort(404)
+        data = _inmueble_dict(inm)
+    finally:
+        db.close()
+    # link de WhatsApp con el nombre de la propiedad ya escrito
+    wa_link = ""
+    if WHATSAPP_EMPRESA:
+        texto = (f"¡Hola {EMPRESA}! Me interesa la propiedad \"{data['titulo']}\" "
+                 f"que vi en la web. ¿Me pasás más información?")
+        wa_link = "https://wa.me/" + WHATSAPP_EMPRESA + "?text=" + urllib.parse.quote(texto)
+    return render_template("propiedad.html", empresa=EMPRESA, inm=data,
+                           whatsapp=WHATSAPP_EMPRESA, wa_link=wa_link)
 
 
 @app.route("/enviar", methods=["POST"])
@@ -391,6 +566,115 @@ def exportar():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=leads.csv"},
     )
+
+
+# --- Admin: inmuebles -------------------------------------------------------
+@app.route("/admin/inmuebles")
+@login_required
+def admin_inmuebles():
+    db = SessionLocal()
+    try:
+        inms = db.query(Inmueble).order_by(Inmueble.creado.desc()).all()
+        data = []
+        for i in inms:
+            d = _inmueble_dict(i)
+            d["n_fotos"] = len(i.fotos)
+            data.append(d)
+    finally:
+        db.close()
+    return render_template("admin_inmuebles.html", inmuebles=data, empresa=EMPRESA)
+
+
+@app.route("/admin/inmuebles/nuevo", methods=["GET", "POST"])
+@login_required
+def admin_inmueble_nuevo():
+    if request.method == "POST":
+        campos = _leer_form_inmueble(request.form)
+        if not campos["titulo"]:
+            flash("El título es obligatorio.")
+            return redirect(url_for("admin_inmueble_nuevo"))
+        db = SessionLocal()
+        try:
+            inm = Inmueble(**campos)
+            db.add(inm)
+            db.commit()
+            db.refresh(inm)
+            _guardar_fotos(db, inm, request.files.getlist("fotos"))
+            db.commit()
+        finally:
+            db.close()
+        return redirect(url_for("admin_inmuebles"))
+    return render_template("inmueble_form.html", empresa=EMPRESA, inm=None, nuevo=True)
+
+
+@app.route("/admin/inmuebles/<int:inm_id>/editar", methods=["GET", "POST"])
+@login_required
+def admin_inmueble_editar(inm_id):
+    db = SessionLocal()
+    try:
+        inm = db.get(Inmueble, inm_id)
+        if not inm:
+            db.close()
+            abort(404)
+        if request.method == "POST":
+            campos = _leer_form_inmueble(request.form)
+            if not campos["titulo"]:
+                flash("El título es obligatorio.")
+                return redirect(url_for("admin_inmueble_editar", inm_id=inm_id))
+            for k, v in campos.items():
+                setattr(inm, k, v)
+            _guardar_fotos(db, inm, request.files.getlist("fotos"))
+            db.commit()
+            return redirect(url_for("admin_inmuebles"))
+        data = _inmueble_dict(inm)
+    finally:
+        db.close()
+    return render_template("inmueble_form.html", empresa=EMPRESA, inm=data, nuevo=False)
+
+
+@app.route("/admin/inmuebles/<int:inm_id>/borrar", methods=["POST"])
+@login_required
+def admin_inmueble_borrar(inm_id):
+    db = SessionLocal()
+    try:
+        inm = db.get(Inmueble, inm_id)
+        if inm:
+            db.delete(inm)
+            db.commit()
+    finally:
+        db.close()
+    return redirect(url_for("admin_inmuebles"))
+
+
+@app.route("/admin/inmuebles/<int:inm_id>/publicar", methods=["POST"])
+@login_required
+def admin_inmueble_publicar(inm_id):
+    db = SessionLocal()
+    try:
+        inm = db.get(Inmueble, inm_id)
+        if inm:
+            inm.publicado = not inm.publicado
+            db.commit()
+    finally:
+        db.close()
+    return redirect(url_for("admin_inmuebles"))
+
+
+@app.route("/admin/foto/<int:foto_id>/borrar", methods=["POST"])
+@login_required
+def admin_foto_borrar(foto_id):
+    db = SessionLocal()
+    try:
+        f = db.get(InmuebleFoto, foto_id)
+        inm_id = f.inmueble_id if f else None
+        if f:
+            db.delete(f)
+            db.commit()
+    finally:
+        db.close()
+    if inm_id:
+        return redirect(url_for("admin_inmueble_editar", inm_id=inm_id))
+    return redirect(url_for("admin_inmuebles"))
 
 
 if __name__ == "__main__":

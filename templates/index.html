@@ -69,6 +69,16 @@
     .proyecto h3{color:var(--negro);font-size:20px}
     .proyecto .ubi{color:var(--celeste);font-size:13px;font-weight:700;margin:5px 0 10px}
     .proyecto p{color:#5a6673;font-size:14px;flex:1}
+    .estado.disp{background:var(--celeste)}
+    .destacado{position:absolute;top:12px;right:12px;background:#f5a623;color:#fff;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:800}
+
+    /* PROPIEDADES EN VENTA */
+    .venta-card{text-decoration:none;color:inherit;transition:transform .15s,box-shadow .15s}
+    .venta-card:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(17,20,24,.14)}
+    .venta-card .precio{font-size:22px;font-weight:800;color:var(--negro)}
+    .venta-card h3{font-size:18px;margin-top:2px}
+    .venta-card .meta{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 14px;color:#5a6673;font-size:13px;font-weight:600}
+    .venta-card .ver-mas{color:var(--celeste);font-weight:700;font-size:14px;margin-top:auto}
 
     /* FORM / CONTACTO */
     .contacto{background:var(--negro)}
@@ -109,6 +119,7 @@
       <div class="nav-links">
         <a href="#nosotros">Nosotros</a>
         <a href="#proyectos">Proyectos</a>
+        {% if inmuebles %}<a href="#propiedades">En venta</a>{% endif %}
         <a href="#contacto" class="nav-cta">Contactar</a>
       </div>
     </div>
@@ -165,6 +176,40 @@
       </div>
     </div>
   </section>
+
+  <!-- PROPIEDADES EN VENTA -->
+  {% if inmuebles %}
+  <section id="propiedades" style="background:var(--gris)">
+    <div class="container">
+      <div class="titulo">
+        <div class="kicker">Oportunidades</div>
+        <h2>Propiedades en venta</h2>
+        <p>Unidades disponibles para comprar o invertir. Consultá por la que te interese.</p>
+      </div>
+      <div class="grid">
+        {% for i in inmuebles %}
+        <a class="proyecto venta-card" href="/propiedad/{{ i.id }}">
+          <div class="foto" {% if i.fotos %}style="background-image:linear-gradient(rgba(17,20,24,.05),rgba(17,20,24,.35)),url('/foto/{{ i.fotos[0] }}')"{% endif %}>
+            <span class="estado {% if i.estado|lower == 'disponible' %}pozo{% endif %}">{{ i.estado }}</span>
+            {% if i.destacado %}<span class="destacado">★ Destacado</span>{% endif %}
+          </div>
+          <div class="info">
+            <div class="precio">{{ i.moneda }} {{ "{:,.0f}".format(i.precio).replace(",", ".") if i.precio else "Consultar" }}</div>
+            <h3>{{ i.titulo }}</h3>
+            <div class="ubi">📍 {{ i.ubicacion }}</div>
+            <div class="meta">
+              {% if i.ambientes %}<span>🏠 {{ i.ambientes }} amb</span>{% endif %}
+              {% if i.m2 %}<span>📐 {{ i.m2 }} m²</span>{% endif %}
+              {% if i.cochera %}<span>🚗 Cochera</span>{% endif %}
+            </div>
+            <span class="ver-mas">Ver propiedad →</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
 
   <!-- CONTACTO / FORM -->
   <section class="contacto" id="contacto">

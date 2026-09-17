@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Propiedades — {{ empresa }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f9;color:#1c2733}
+    header{background:#111418;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    header h1{font-size:18px}
+    header .total{color:#29b6e8;font-size:13px}
+    .acciones a{color:#fff;text-decoration:none;font-size:13px;margin-left:12px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px;display:inline-block}
+    .acciones a.nueva{background:#29b6e8;color:#fff;border-color:#29b6e8;font-weight:700}
+    .cont{padding:18px;overflow-x:auto}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(15,37,64,.06);min-width:820px}
+    th{background:#eef1f6;text-align:left;padding:12px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#5a6673}
+    td{padding:12px 14px;border-top:1px solid #eef1f6;font-size:14px;vertical-align:middle}
+    tr:hover td{background:#fbfcfe}
+    .thumb{width:64px;height:48px;border-radius:8px;object-fit:cover;background:#eef1f6}
+    .nothumb{width:64px;height:48px;border-radius:8px;background:linear-gradient(135deg,#1c2229,#29b6e8)}
+    .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700}
+    .on{background:#e6f7ec;color:#1a7f43}
+    .off{background:#eef1f6;color:#8a94a0}
+    .disp{background:#eaf7fd;color:#1c6a86}
+    .btnrow{display:flex;gap:6px;flex-wrap:wrap}
+    .btn{border:1px solid #cfd6de;background:#fff;color:#1c2733;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;text-decoration:none;display:inline-block}
+    .btn:hover{background:#f0f3f7}
+    .btn.edit{border-color:#29b6e8;color:#1c6a86}
+    .btn.del{border-color:#e0b4b4;color:#c0392b}
+    .btn.del:hover{background:#c0392b;color:#fff}
+    .vacio{text-align:center;padding:60px 20px;color:#8a94a0}
+    .vacio a{color:#29b6e8;font-weight:700;text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Propiedades en venta</h1>
+      <span class="total">{{ inmuebles|length }} propiedad(es)</span>
+    </div>
+    <div class="acciones">
+      <a class="nueva" href="/admin/inmuebles/nuevo">+ Nueva propiedad</a>
+      <a href="/admin">Leads</a>
+      <a href="/logout">Salir</a>
+    </div>
+  </header>
+
+  <div class="cont">
+    {% if inmuebles %}
+    <table>
+      <thead>
+        <tr>
+          <th>Foto</th><th>Título</th><th>Precio</th><th>Ubicación</th>
+          <th>Estado</th><th>Fotos</th><th>Visible</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in inmuebles %}
+        <tr>
+          <td>{% if i.fotos %}<img class="thumb" src="/foto/{{ i.fotos[0] }}">{% else %}<div class="nothumb"></div>{% endif %}</td>
+          <td><strong>{{ i.titulo }}</strong><br><span style="color:#8a94a0;font-size:12px">{{ i.tipo }}{% if i.destacado %} · ★ destacado{% endif %}</span></td>
+          <td>{{ i.moneda }} {{ "{:,.0f}".format(i.precio).replace(",", ".") if i.precio else "—" }}</td>
+          <td>{{ i.ubicacion }}</td>
+          <td><span class="badge disp">{{ i.estado }}</span></td>
+          <td>{{ i.n_fotos }}</td>
+          <td>
+            <form method="post" action="/admin/inmuebles/{{ i.id }}/publicar">
+              <button class="badge {{ 'on' if i.publicado else 'off' }}" style="border:none;cursor:pointer" type="submit" title="Tocá para cambiar">
+                {{ 'Publicada' if i.publicado else 'Oculta' }}
+              </button>
+            </form>
+          </td>
+          <td>
+            <div class="btnrow">
+              <a class="btn edit" href="/admin/inmuebles/{{ i.id }}/editar">Editar</a>
+              <form method="post" action="/admin/inmuebles/{{ i.id }}/borrar" onsubmit="return confirm('¿Borrar esta propiedad y sus fotos? No se puede deshacer.');">
+                <button class="btn del" type="submit">Borrar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="vacio">Todavía no cargaste propiedades. <a href="/admin/inmuebles/nuevo">Cargá la primera →</a></div>
+    {% endif %}
+  </div>
+</body>
+</html>

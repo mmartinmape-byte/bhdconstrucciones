@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ inm.titulo }} — {{ empresa }}</title>
+  <style>
+    :root{--celeste:#29b6e8;--celeste-osc:#1c9fd1;--negro:#111418;--gris:#f5f7f9;--texto:#1c2733;--linea:#e6eaee}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--texto);background:#fff;line-height:1.6}
+    img{max-width:100%;display:block}
+    .container{max-width:1080px;margin:0 auto;padding:0 22px}
+    nav{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--linea)}
+    nav .container{display:flex;align-items:center;justify-content:space-between;height:74px}
+    .logo-img{height:56px;width:auto}
+    .volver{color:var(--negro);text-decoration:none;font-size:14px;font-weight:600}
+    .volver:hover{color:var(--celeste)}
+    .wrap{padding:36px 0 70px}
+    .breadcrumb{font-size:13px;color:#8a94a0;margin-bottom:18px}
+    .breadcrumb a{color:var(--celeste);text-decoration:none}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+    h1{font-size:30px;color:var(--negro);line-height:1.15}
+    .ubi{color:var(--celeste);font-weight:700;font-size:15px;margin-top:6px}
+    .precio{font-size:30px;font-weight:800;color:var(--negro);white-space:nowrap}
+    .estado{display:inline-block;background:var(--negro);color:#fff;padding:5px 13px;border-radius:20px;font-size:12px;font-weight:700;margin-left:8px;vertical-align:middle}
+    .estado.disp{background:var(--celeste)}
+    /* galería */
+    .galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:8px 0 28px}
+    .galeria .g0{grid-column:1/-1}
+    .galeria img{width:100%;height:100%;max-height:520px;object-fit:cover;border-radius:14px;background:#eef1f6}
+    .galeria .g0 img{max-height:480px}
+    .sinfoto{background:linear-gradient(135deg,#1c2229,#29b6e8);border-radius:16px;height:280px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;margin-bottom:28px}
+    /* datos */
+    .datos{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:26px}
+    .dato{background:var(--gris);border-radius:12px;padding:14px 18px;min-width:120px;border-top:3px solid var(--celeste)}
+    .dato .k{font-size:12px;color:#5a6673;text-transform:uppercase;letter-spacing:.5px}
+    .dato .v{font-size:18px;font-weight:800;color:var(--negro);margin-top:2px}
+    .desc{font-size:16px;color:#33404d;white-space:pre-line;max-width:760px;margin-bottom:30px}
+    .cta{display:inline-flex;align-items:center;gap:9px;background:#25D366;color:#fff;text-decoration:none;padding:15px 28px;border-radius:10px;font-weight:700;font-size:16px}
+    .cta:hover{background:#1ebe5b}
+    .cta svg{width:22px;height:22px;fill:#fff}
+    footer{background:var(--negro);color:#8ea1b8;text-align:center;padding:30px 22px;font-size:14px;margin-top:20px}
+    footer .fl{font-weight:800;color:#fff;margin-bottom:6px}
+    footer .fl span{color:var(--celeste)}
+    @media(max-width:640px){h1{font-size:24px}.precio{font-size:24px}}
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a href="/#propiedades"><img src="/static/img/logo.png" alt="{{ empresa }}" class="logo-img"></a>
+      <a class="volver" href="/#propiedades">← Volver a propiedades</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <div class="container">
+      <div class="breadcrumb"><a href="/">Inicio</a> / <a href="/#propiedades">Propiedades en venta</a> / {{ inm.titulo }}</div>
+
+      <div class="top">
+        <div>
+          <h1>{{ inm.titulo }}<span class="estado {% if inm.estado|lower == 'disponible' %}disp{% endif %}">{{ inm.estado }}</span></h1>
+          <div class="ubi">📍 {{ inm.ubicacion }}</div>
+        </div>
+        <div class="precio">{{ inm.moneda }} {{ "{:,.0f}".format(inm.precio).replace(",", ".") if inm.precio else "Consultar" }}</div>
+      </div>
+
+      {% if inm.fotos %}
+      <div class="galeria">
+        {% for fid in inm.fotos %}
+        <div class="{% if loop.first %}g0{% endif %}"><img src="/foto/{{ fid }}" alt="{{ inm.titulo }}"></div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="sinfoto">{{ empresa }}</div>
+      {% endif %}
+
+      <div class="datos">
+        <div class="dato"><div class="k">Operación</div><div class="v">{{ inm.operacion }}</div></div>
+        <div class="dato"><div class="k">Tipo</div><div class="v">{{ inm.tipo }}</div></div>
+        {% if inm.ambientes %}<div class="dato"><div class="k">Ambientes</div><div class="v">{{ inm.ambientes }}</div></div>{% endif %}
+        {% if inm.dormitorios %}<div class="dato"><div class="k">Dormitorios</div><div class="v">{{ inm.dormitorios }}</div></div>{% endif %}
+        {% if inm.banos %}<div class="dato"><div class="k">Baños</div><div class="v">{{ inm.banos }}</div></div>{% endif %}
+        {% if inm.m2 %}<div class="dato"><div class="k">Superficie</div><div class="v">{{ inm.m2 }} m²</div></div>{% endif %}
+        <div class="dato"><div class="k">Cochera</div><div class="v">{{ "Sí" if inm.cochera else "No" }}</div></div>
+      </div>
+
+      {% if inm.descripcion %}<div class="desc">{{ inm.descripcion }}</div>{% endif %}
+
+      {% if wa_link %}
+      <a class="cta" href="{{ wa_link }}" target="_blank">
+        <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
+        Consultar por esta propiedad
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <footer>
+    <div class="fl">BHD <span>CONSTRUCCIONES</span></div>
+    <div>© {{ empresa }} — Todos los derechos reservados</div>
+  </footer>
+</body>
+</html>
