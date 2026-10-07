@@ -49,7 +49,7 @@ SUBTITULO = os.environ.get(
     "SUBTITULO",
     "Dejanos tus datos y te asesoramos sin cargo sobre la propiedad ideal para vos."
 )
-WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491130757520")  # solo numeros, con codigo de pais
+WHATSAPP_EMPRESA = os.environ.get("WHATSAPP_EMPRESA", "5491169616870")  # solo numeros, con codigo de pais
 
 # --- Aviso por email cuando entra un lead ---
 # Railway bloquea SMTP, asi que usamos Resend (API por HTTPS). Cargar RESEND_API_KEY en Railway.
