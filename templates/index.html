@@ -234,6 +234,16 @@
         <label>Email <span class="req">*</span></label>
         <input type="email" name="email" required placeholder="tu@email.com">
 
+        <input type="hidden" name="origen" value="{{ origen }}">
+
+        <label>¿Te interesa algún proyecto?</label>
+        <select name="proyecto">
+          <option value="">Todavía no sé / quiero ver opciones</option>
+          {% for p in proyectos %}
+          <option value="{{ p.nombre }}" {% if proyecto_sel and proyecto_sel == p.nombre %}selected{% endif %}>{{ p.nombre }} — {{ p.ubicacion }}</option>
+          {% endfor %}
+        </select>
+
         <label>¿Qué estás buscando?</label>
         <div class="opciones">
           <label><input type="radio" name="busca" value="Pozo (preventa)" checked> Invertir en pozo</label>

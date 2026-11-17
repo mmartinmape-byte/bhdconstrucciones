@@ -8,7 +8,7 @@ import urllib.request
 import urllib.parse
 from contextlib import contextmanager
 from email.message import EmailMessage
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from functools import wraps
 
 
@@ -31,8 +31,8 @@ from flask import (
     session, Response, flash, abort
 )
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Text, DateTime,
-    Boolean, LargeBinary, ForeignKey
+    create_engine, Column, Integer, String, Text, DateTime, Date,
+    Boolean, LargeBinary, ForeignKey, or_
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
@@ -99,13 +99,21 @@ PROYECTOS = [
         "nombre": "Edificio Munro",
         "ubicacion": "Munro, Vicente López",
         "estado": "En construcción",
-        "descripcion": "5 departamentos de 3 ambientes de aprox. 70 m² con cochera, "
-                       "frente al Olivos Rugby Club. El del primer piso incluye patio "
-                       "de 5 x 8,5 m; los del segundo piso, terraza propia de 70 m². "
+        "descripcion": "5 departamentos de 2 dormitorios y 2 baños, de 66 m² cubiertos "
+                       "+ 6 m² semicubiertos, con una cochera por unidad, frente al "
+                       "Olivos Rugby Club. La planta baja tiene jardín de 40 m² con "
+                       "parrilla; los del segundo piso, terraza propia de 72 m². "
                        "Excelente oportunidad de inversión.",
         "imagen": "img/munro.png",
     },
 ]
+
+# Etapas del seguimiento de prospectos (en orden)
+ESTADOS = ["Nuevo", "Contactado", "Visita agendada", "Negociando", "Reservó", "Compró", "Descartado"]
+ESTADOS_CERRADOS = {"Compró", "Descartado"}
+# De dónde puede venir un prospecto cargado a mano (los de la web traen el ?origen= del link)
+ORIGENES_MANUALES = ["Instagram", "Cartel de obra", "Referido", "Llamado", "Visita a obra",
+                     "Portal inmobiliario", "Inmobiliaria", "Otro"]
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
@@ -134,6 +142,29 @@ class Lead(Base):
     zona = Column(String(160))
     mensaje = Column(Text)
     creado = Column(DateTime, default=datetime.utcnow)
+    # --- seguimiento ---
+    origen = Column(String(80), default="web")         # instagram, cartel-pelliza, referido...
+    proyecto = Column(String(120), default="")          # proyecto que le interesa
+    unidad = Column(String(60), default="")             # unidad puntual (ej: 2°A)
+    estado = Column(String(30), default="Nuevo")        # ver ESTADOS
+    proximo_contacto = Column(Date)                     # cuándo volver a contactarlo
+    carga = Column(String(20), default="web")           # web / manual
+
+    notas = relationship(
+        "LeadNota", back_populates="lead",
+        cascade="all, delete-orphan", order_by="LeadNota.creado.desc()",
+    )
+
+
+class LeadNota(Base):
+    __tablename__ = "lead_notas"
+
+    id = Column(Integer, primary_key=True)
+    lead_id = Column(Integer, ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    texto = Column(Text, nullable=False)
+    creado = Column(DateTime, default=datetime.utcnow)
+
+    lead = relationship("Lead", back_populates="notas")
 
 
 class Inmueble(Base):
@@ -193,6 +224,29 @@ def _migrar_columnas():
     except Exception as e:
         print("Aviso migración inmuebles:", e)
 
+    # Columnas de seguimiento en leads (cada una por separado: si una falla, las demás siguen)
+    nuevas = [
+        ("origen", "VARCHAR(80) DEFAULT 'web'"),
+        ("proyecto", "VARCHAR(120) DEFAULT ''"),
+        ("unidad", "VARCHAR(60) DEFAULT ''"),
+        ("estado", "VARCHAR(30) DEFAULT 'Nuevo'"),
+        ("proximo_contacto", "DATE"),
+        ("carga", "VARCHAR(20) DEFAULT 'web'"),
+    ]
+    try:
+        cols = {c["name"] for c in inspect(engine).get_columns("leads")}
+    except Exception as e:
+        print("Aviso migración leads:", e)
+        return
+    for nombre, tipo in nuevas:
+        if nombre in cols:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(_sql_text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
+        except Exception as e:
+            print(f"Aviso migración leads.{nombre}:", e)
+
 
 _migrar_columnas()
 
@@ -201,6 +255,35 @@ app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024  # 40 MB por request
 
 
 # --- Helpers ----------------------------------------------------------------
+def hoy_ar():
+    """Fecha de hoy en Argentina (UTC-3)."""
+    return (datetime.utcnow() - timedelta(hours=3)).date()
+
+
+def wa_num(numero):
+    """Normaliza un WhatsApp argentino para wa.me (agrega 549 si falta)."""
+    n = "".join(ch for ch in (numero or "") if ch.isdigit())
+    if n.startswith("549") and len(n) == 13:
+        return n
+    if n.startswith("54") and len(n) == 12:
+        return "549" + n[2:]
+    n = n.lstrip("0")
+    # "11 15 4444-5555": característica + 15 + número -> sacar el 15
+    if len(n) == 12:
+        for k in (2, 3, 4):
+            if n[k:k + 2] == "15":
+                n = n[:k] + n[k + 2:]
+                break
+    if len(n) == 10 and n.startswith("15"):   # "15 4444 5555" sin característica -> AMBA (11)
+        n = "11" + n[2:]
+    if len(n) == 10:
+        return "549" + n
+    return n
+
+
+app.jinja_env.filters["wa_num"] = wa_num
+
+
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -222,6 +305,8 @@ def _armar_email(d):
         f"Busca: {d['busca']}\n"
         f"Tipo de propiedad: {d['tipo_propiedad']}\n"
         f"Zona: {d['zona']}\n"
+        f"Proyecto: {d.get('proyecto') or '-'}\n"
+        f"Origen: {d.get('origen') or 'web'}\n"
         f"Comentario: {d['mensaje']}\n"
     )
     html = f"""
@@ -236,6 +321,8 @@ def _armar_email(d):
         <tr><td style="padding:10px 20px;color:#8a94a0">Busca</td><td style="padding:10px 20px">{d['busca']}</td></tr>
         <tr><td style="padding:10px 20px;color:#8a94a0">Tipo</td><td style="padding:10px 20px">{d['tipo_propiedad']}</td></tr>
         <tr><td style="padding:10px 20px;color:#8a94a0">Zona</td><td style="padding:10px 20px">{d['zona']}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Proyecto</td><td style="padding:10px 20px">{d.get('proyecto') or '-'}</td></tr>
+        <tr><td style="padding:10px 20px;color:#8a94a0">Origen</td><td style="padding:10px 20px">{d.get('origen') or 'web'}</td></tr>
         <tr><td style="padding:10px 20px;color:#8a94a0">Comentario</td><td style="padding:10px 20px">{d['mensaje']}</td></tr>
       </table>
       <div style="padding:16px 20px">
@@ -306,6 +393,7 @@ def enviar_whatsapp(d):
         f"Email: {d['email']}\n"
         f"Busca: {d['busca']} ({d['tipo_propiedad']})\n"
         f"Zona: {d['zona']}\n"
+        f"Proyecto: {d.get('proyecto') or '-'} · Origen: {d.get('origen') or 'web'}\n"
         f"Comentario: {d['mensaje']}"
     )
     url = "https://api.callmebot.com/whatsapp.php?" + urllib.parse.urlencode({
@@ -405,6 +493,14 @@ def _leer_form_inmueble(form):
 # --- Rutas publicas ---------------------------------------------------------
 @app.route("/")
 def index():
+    # ?origen=cartel-pelliza  -> se guarda en la sesión (gana el primer origen con el que llegó)
+    origen = (request.args.get("origen") or "").strip()[:80]
+    if origen and not session.get("origen"):
+        session["origen"] = origen
+    proyecto_arg = (request.args.get("proyecto") or "").strip().lower()
+    proyecto_sel = next((p["nombre"] for p in PROYECTOS
+                         if proyecto_arg and (proyecto_arg in p["nombre"].lower()
+                                              or proyecto_arg in p["ubicacion"].lower())), "")
     db = SessionLocal()
     try:
         inms = (db.query(Inmueble)
@@ -423,6 +519,8 @@ def index():
         proyectos=PROYECTOS,
         inmuebles=inmuebles,
         whatsapp=WHATSAPP_EMPRESA,
+        origen=session.get("origen", origen),
+        proyecto_sel=proyecto_sel,
     )
 
 
@@ -471,6 +569,10 @@ def enviar():
             tipo_propiedad=request.form.get("tipo_propiedad", "").strip(),
             zona=request.form.get("zona", "").strip(),
             mensaje=request.form.get("mensaje", "").strip(),
+            proyecto=request.form.get("proyecto", "").strip()[:120],
+            origen=(request.form.get("origen") or session.get("origen") or "web").strip()[:80],
+            estado="Nuevo",
+            carga="web",
         )
         if not lead.nombre or not lead.whatsapp or not lead.email:
             flash("Por favor completá nombre, WhatsApp y email.")
@@ -481,6 +583,7 @@ def enviar():
             "nombre": lead.nombre, "whatsapp": lead.whatsapp, "email": lead.email,
             "busca": lead.busca, "tipo_propiedad": lead.tipo_propiedad,
             "zona": lead.zona, "mensaje": lead.mensaje,
+            "proyecto": lead.proyecto, "origen": lead.origen,
         }
     finally:
         db.close()
@@ -492,6 +595,8 @@ def enviar():
         f"Nombre: {datos['nombre']}",
         f"Busco: {datos['busca']} ({datos['tipo_propiedad']})",
     ]
+    if datos["proyecto"]:
+        partes.append(f"Proyecto: {datos['proyecto']}")
     if datos["zona"]:
         partes.append(f"Zona: {datos['zona']}")
     if datos["mensaje"]:
@@ -539,15 +644,197 @@ def logout():
     return redirect(url_for("login"))
 
 
+def _proyectos_opciones(db):
+    """Proyectos para elegir: los de la web + los que ya figuran en algún prospecto."""
+    nombres = [p["nombre"] for p in PROYECTOS]
+    for (pr,) in db.query(Lead.proyecto).distinct():
+        if pr and pr not in nombres:
+            nombres.append(pr)
+    return nombres
+
+
+def _leer_form_lead(form):
+    pc = (form.get("proximo_contacto") or "").strip()
+    try:
+        prox = datetime.strptime(pc, "%Y-%m-%d").date() if pc else None
+    except ValueError:
+        prox = None
+    estado = form.get("estado", "Nuevo")
+    return {
+        "nombre": form.get("nombre", "").strip(),
+        "whatsapp": form.get("whatsapp", "").strip(),
+        "email": form.get("email", "").strip(),
+        "proyecto": form.get("proyecto", "").strip()[:120],
+        "unidad": form.get("unidad", "").strip()[:60],
+        "origen": (form.get("origen", "").strip() or "Otro")[:80],
+        "estado": estado if estado in ESTADOS else "Nuevo",
+        "proximo_contacto": prox,
+        "busca": form.get("busca", "").strip(),
+        "tipo_propiedad": form.get("tipo_propiedad", "").strip(),
+        "zona": form.get("zona", "").strip(),
+        "mensaje": form.get("mensaje", "").strip(),
+    }
+
+
 @app.route("/admin")
 @login_required
 def admin():
+    hoy = hoy_ar()
+    f_estado = request.args.get("estado", "")
+    f_proyecto = request.args.get("proyecto", "")
+    f_origen = request.args.get("origen", "")
+    q = (request.args.get("q") or "").strip()
     db = SessionLocal()
     try:
-        leads = db.query(Lead).order_by(Lead.creado.desc()).all()
+        todos = db.query(Lead).all()
+        # embudo: cantidad por estado (sobre todos los prospectos)
+        embudo = {e: 0 for e in ESTADOS}
+        for l in todos:
+            embudo[l.estado or "Nuevo"] = embudo.get(l.estado or "Nuevo", 0) + 1
+
+        # "para hoy": vencidos o de hoy + nuevos que nadie contactó todavía
+        hoy_lista = [l for l in todos if (l.estado or "Nuevo") not in ESTADOS_CERRADOS and (
+            (l.proximo_contacto and l.proximo_contacto <= hoy) or (l.estado or "Nuevo") == "Nuevo")]
+        hoy_lista.sort(key=lambda l: (l.proximo_contacto or date.min, l.creado or datetime.min))
+
+        qry = db.query(Lead)
+        if f_estado:
+            qry = qry.filter(or_(Lead.estado == f_estado, Lead.estado.is_(None)) if f_estado == "Nuevo"
+                             else Lead.estado == f_estado)
+        if f_proyecto:
+            qry = qry.filter(Lead.proyecto == f_proyecto)
+        if f_origen:
+            qry = qry.filter(Lead.origen == f_origen)
+        if q:
+            like = f"%{q}%"
+            qry = qry.filter(or_(Lead.nombre.ilike(like), Lead.whatsapp.ilike(like),
+                                 Lead.email.ilike(like), Lead.mensaje.ilike(like)))
+        leads = qry.order_by(Lead.creado.desc()).all()
+        ultima_nota = {l.id: (l.notas[0].texto if l.notas else "") for l in leads + hoy_lista}
+        origenes = sorted({l.origen for l in todos if l.origen})
+        proyectos = _proyectos_opciones(db)
+        return render_template(
+            "admin.html", empresa=EMPRESA, leads=leads, hoy_lista=hoy_lista, hoy=hoy,
+            embudo=embudo, estados=ESTADOS, origenes=origenes, proyectos=proyectos,
+            ultima_nota=ultima_nota, total=len(todos),
+            f_estado=f_estado, f_proyecto=f_proyecto, f_origen=f_origen, q=q,
+        )
     finally:
         db.close()
-    return render_template("admin.html", leads=leads, empresa=EMPRESA)
+
+
+@app.route("/admin/prospecto/nuevo", methods=["GET", "POST"])
+@login_required
+def prospecto_nuevo():
+    db = SessionLocal()
+    try:
+        if request.method == "POST":
+            d = _leer_form_lead(request.form)
+            if not d["nombre"] or not d["whatsapp"]:
+                flash("Nombre y WhatsApp son obligatorios.")
+                return redirect(url_for("prospecto_nuevo"))
+            lead = Lead(**d, carga="manual")
+            db.add(lead)
+            db.flush()
+            nota = request.form.get("nota", "").strip()
+            db.add(LeadNota(lead_id=lead.id, texto="Cargado a mano" + (f": {nota}" if nota else "")))
+            db.commit()
+            return redirect(url_for("prospecto", lead_id=lead.id))
+        return render_template("prospecto.html", empresa=EMPRESA, l=None, estados=ESTADOS,
+                               origenes=ORIGENES_MANUALES, proyectos=_proyectos_opciones(db),
+                               hoy=hoy_ar(), wa_link="")
+    finally:
+        db.close()
+
+
+@app.route("/admin/prospecto/<int:lead_id>", methods=["GET", "POST"])
+@login_required
+def prospecto(lead_id):
+    db = SessionLocal()
+    try:
+        lead = db.get(Lead, lead_id)
+        if not lead:
+            abort(404)
+        if request.method == "POST":
+            d = _leer_form_lead(request.form)
+            if not d["nombre"] or not d["whatsapp"]:
+                flash("Nombre y WhatsApp son obligatorios.")
+                return redirect(url_for("prospecto", lead_id=lead_id))
+            antes = lead.estado or "Nuevo"
+            for k, v in d.items():
+                setattr(lead, k, v)
+            if d["estado"] != antes:
+                db.add(LeadNota(lead_id=lead.id, texto=f"Estado: {antes} → {d['estado']}"))
+            db.commit()
+            flash("Cambios guardados.")
+            return redirect(url_for("prospecto", lead_id=lead_id))
+        origenes = list(ORIGENES_MANUALES)
+        if lead.origen and lead.origen not in origenes:
+            origenes.insert(0, lead.origen)
+        nombre = (lead.nombre or "").split(" ")[0]
+        texto = f"Hola {nombre}! Te escribo de {EMPRESA.title()}"
+        texto += f" por tu consulta sobre {lead.proyecto}." if lead.proyecto else " por tu consulta."
+        wa_link = f"https://wa.me/{wa_num(lead.whatsapp)}?text=" + urllib.parse.quote(texto)
+        return render_template("prospecto.html", empresa=EMPRESA, l=lead, notas=list(lead.notas),
+                               estados=ESTADOS, origenes=origenes, proyectos=_proyectos_opciones(db),
+                               hoy=hoy_ar(), wa_link=wa_link)
+    finally:
+        db.close()
+
+
+@app.route("/admin/prospecto/<int:lead_id>/nota", methods=["POST"])
+@login_required
+def prospecto_nota(lead_id):
+    """Registrar un contacto: nota + (opcional) nuevo estado y fecha del próximo contacto."""
+    db = SessionLocal()
+    try:
+        lead = db.get(Lead, lead_id)
+        if not lead:
+            abort(404)
+        texto = request.form.get("texto", "").strip()
+        nuevo_estado = request.form.get("estado", "")
+        antes = lead.estado or "Nuevo"
+        partes = []
+        if nuevo_estado in ESTADOS and nuevo_estado != antes:
+            lead.estado = nuevo_estado
+            partes.append(f"Estado: {antes} → {nuevo_estado}")
+        elif antes == "Nuevo" and texto:
+            lead.estado = "Contactado"   # si le escribí algo, ya no es "nuevo"
+            partes.append("Estado: Nuevo → Contactado")
+        pc = request.form.get("proximo_contacto", "").strip()
+        dias = request.form.get("en_dias", "").strip()
+        if dias.isdigit():
+            lead.proximo_contacto = hoy_ar() + timedelta(days=int(dias))
+        elif pc:
+            try:
+                lead.proximo_contacto = datetime.strptime(pc, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        elif request.form.get("sin_fecha"):
+            lead.proximo_contacto = None
+        if texto:
+            partes.insert(0, texto)
+        if partes:
+            db.add(LeadNota(lead_id=lead.id, texto=" · ".join(partes)))
+        db.commit()
+    finally:
+        db.close()
+    return redirect(request.form.get("volver") or url_for("prospecto", lead_id=lead_id))
+
+
+@app.route("/admin/nota/<int:nota_id>/borrar", methods=["POST"])
+@login_required
+def nota_borrar(nota_id):
+    db = SessionLocal()
+    try:
+        n = db.get(LeadNota, nota_id)
+        lead_id = n.lead_id if n else None
+        if n:
+            db.delete(n)
+            db.commit()
+    finally:
+        db.close()
+    return redirect(url_for("prospecto", lead_id=lead_id) if lead_id else url_for("admin"))
 
 
 @app.route("/borrar/<int:lead_id>", methods=["POST"])
@@ -570,23 +857,29 @@ def exportar():
     db = SessionLocal()
     try:
         leads = db.query(Lead).order_by(Lead.creado.desc()).all()
+        filas = []
+        for l in leads:
+            filas.append([
+                l.creado.strftime("%d/%m/%Y %H:%M") if l.creado else "", l.nombre, l.whatsapp, l.email,
+                l.proyecto or "", l.unidad or "", l.origen or "", l.carga or "", l.estado or "Nuevo",
+                l.proximo_contacto.strftime("%d/%m/%Y") if l.proximo_contacto else "",
+                l.busca, l.tipo_propiedad, l.zona, l.mensaje,
+                " | ".join(f"{n.creado.strftime('%d/%m/%Y') if n.creado else ''} {n.texto}" for n in l.notas),
+            ])
     finally:
         db.close()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Fecha", "Nombre", "WhatsApp", "Email", "Busca",
-                     "Tipo de propiedad", "Zona", "Mensaje"])
-    for l in leads:
-        fecha = l.creado.strftime("%d/%m/%Y %H:%M") if l.creado else ""
-        writer.writerow([fecha, l.nombre, l.whatsapp, l.email, l.busca,
-                         l.tipo_propiedad, l.zona, l.mensaje])
+    writer.writerow(["Fecha", "Nombre", "WhatsApp", "Email", "Proyecto", "Unidad", "Origen", "Carga",
+                     "Estado", "Próximo contacto", "Busca", "Tipo de propiedad", "Zona", "Mensaje", "Notas"])
+    writer.writerows(filas)
 
-    csv_data = "﻿" + output.getvalue()  # BOM para que Excel abra bien los acentos
+    csv_data = "\ufeff" + output.getvalue()  # BOM para que Excel abra bien los acentos
     return Response(
         csv_data,
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=leads.csv"},
+        headers={"Content-Disposition": "attachment; filename=prospectos.csv"},
     )
 
 

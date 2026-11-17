@@ -3,77 +3,177 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Leads — {{ empresa }}</title>
+  <title>Prospectos — {{ empresa }}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f9;color:#1c2733}
-    header{background:#111418;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    a{color:inherit}
+    header{background:#111418;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
     header h1{font-size:18px}
     header .total{color:#29b6e8;font-size:13px}
-    .acciones a{color:#fff;text-decoration:none;font-size:13px;margin-left:16px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px}
-    .acciones a.exp{background:#29b6e8;color:#fff;border-color:#29b6e8;font-weight:700}
-    .cont{padding:18px;overflow-x:auto}
-    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(15,37,64,.06);min-width:820px}
-    th{background:#eef1f6;text-align:left;padding:12px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#5a6673}
-    td{padding:12px 14px;border-top:1px solid #eef1f6;font-size:14px;vertical-align:top}
-    tr:hover td{background:#fbfcfe}
-    .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600}
-    .pozo{background:#eaf7fd;color:#1c6a86}
-    .term{background:#eef1f6;color:#33404d}
+    .acciones{display:flex;gap:8px;flex-wrap:wrap}
+    .acciones a{color:#fff;text-decoration:none;font-size:13px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px}
+    .acciones a.prim{background:#29b6e8;border-color:#29b6e8;font-weight:700}
+    .cont{padding:18px;max-width:1300px;margin:0 auto}
+    h2{font-size:15px;margin:6px 0 10px;display:flex;align-items:center;gap:8px}
+    h2 .n{background:#29b6e8;color:#fff;border-radius:20px;font-size:12px;padding:1px 9px}
+    .card{background:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(15,37,64,.06);margin-bottom:18px}
+
+    /* embudo */
+    .embudo{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:18px}
+    .embudo a{background:#fff;border-radius:10px;padding:10px 12px;text-decoration:none;box-shadow:0 2px 8px rgba(15,37,64,.05);border:2px solid transparent}
+    .embudo a.on{border-color:#29b6e8}
+    .embudo b{display:block;font-size:22px;font-weight:700}
+    .embudo span{font-size:12px;color:#5a6673}
+    @media(max-width:800px){.embudo{grid-template-columns:repeat(4,1fr)}}
+
+    /* para hoy */
+    .hoy{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;padding:12px}
+    .hoy .it{border:1px solid #eef1f6;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+    .hoy .it.venc{border-color:#f3c9c4;background:#fff8f7}
+    .hoy .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    .hoy .nom{font-weight:700;text-decoration:none}
+    .hoy .meta{font-size:12px;color:#5a6673}
+    .hoy .nota{font-size:12.5px;color:#33404d;background:#f7f9fb;border-radius:6px;padding:6px 8px}
+    .rapido{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .rapido input[type=text]{flex:1;min-width:120px;border:1px solid #dfe4ea;border-radius:7px;padding:7px 9px;font-size:13px}
+    .rapido select,.rapido button{border:1px solid #dfe4ea;border-radius:7px;padding:7px 8px;font-size:12.5px;background:#fff;cursor:pointer}
+    .rapido button{background:#111418;color:#fff;border-color:#111418;font-weight:600}
+    .vacio-hoy{padding:18px;color:#8a94a0;font-size:14px}
+
+    /* filtros + tabla */
+    form.filtros{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-bottom:1px solid #eef1f6}
+    form.filtros input,form.filtros select{border:1px solid #dfe4ea;border-radius:8px;padding:8px 10px;font-size:13px;background:#fff}
+    form.filtros input{flex:1;min-width:180px}
+    form.filtros button{background:#29b6e8;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
+    form.filtros a{font-size:13px;align-self:center;color:#5a6673}
+    .tabla{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:900px}
+    th{background:#eef1f6;text-align:left;padding:10px 12px;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#5a6673}
+    td{padding:10px 12px;border-top:1px solid #eef1f6;font-size:13.5px;vertical-align:top}
+    tr.fila{cursor:pointer} tr.fila:hover td{background:#fbfcfe}
+    td .sub{font-size:12px;color:#8a94a0}
     a.wa{color:#128C7E;text-decoration:none;font-weight:600}
-    .vacio{text-align:center;padding:60px 20px;color:#8a94a0}
-    .del{background:none;border:1px solid #e0b4b4;color:#c0392b;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600}
-    .del:hover{background:#c0392b;color:#fff;border-color:#c0392b}
+    .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;background:#eef1f6;color:#33404d}
+    .e-Nuevo{background:#eaf7fd;color:#1c6a86}
+    .e-Contactado{background:#eef1f6;color:#33404d}
+    .e-Visita{background:#fff4dd;color:#8a5a00}
+    .e-Negociando{background:#f1e9ff;color:#5b2ca0}
+    .e-Reservó{background:#e3f6ea;color:#1d7a43}
+    .e-Compró{background:#1d7a43;color:#fff}
+    .e-Descartado{background:#f3f3f3;color:#9aa3ad}
+    .orig{font-size:12px;color:#5a6673;background:#f4f6f9;border-radius:6px;padding:2px 7px;white-space:nowrap}
+    .venc-txt{color:#c0392b;font-weight:600}
+    .vacio{text-align:center;padding:50px 20px;color:#8a94a0}
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>Leads recibidos</h1>
-      <span class="total">{{ leads|length }} contacto(s)</span>
+      <h1>Prospectos</h1>
+      <span class="total">{{ total }} en total</span>
     </div>
     <div class="acciones">
+      <a class="prim" href="/admin/prospecto/nuevo">+ Nuevo prospecto</a>
       <a href="/admin/inmuebles">🏠 Propiedades</a>
-      <a class="exp" href="/exportar">⬇ Exportar a Excel/CSV</a>
+      <a href="/exportar">⬇ Exportar</a>
       <a href="/logout">Salir</a>
     </div>
   </header>
 
   <div class="cont">
-    {% if leads %}
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th><th>Nombre</th><th>WhatsApp</th><th>Email</th>
-          <th>Busca</th><th>Tipo</th><th>Zona</th><th>Comentario</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for l in leads %}
-        <tr>
-          <td>{{ l.creado.strftime('%d/%m/%Y %H:%M') if l.creado else '' }}</td>
-          <td><strong>{{ l.nombre }}</strong></td>
-          <td><a class="wa" href="https://wa.me/{{ l.whatsapp | replace(' ','') | replace('+','') }}" target="_blank">{{ l.whatsapp }}</a></td>
-          <td>{{ l.email }}</td>
-          <td>
-            {% if 'Pozo' in (l.busca or '') %}<span class="badge pozo">Pozo</span>
-            {% elif l.busca %}<span class="badge term">Terminada</span>{% endif %}
-          </td>
-          <td>{{ l.tipo_propiedad }}</td>
-          <td>{{ l.zona }}</td>
-          <td>{{ l.mensaje }}</td>
-          <td>
-            <form method="post" action="/borrar/{{ l.id }}" onsubmit="return confirm('¿Borrar este lead? No se puede deshacer.');">
-              <button class="del" type="submit">Borrar</button>
-            </form>
-          </td>
-        </tr>
+    {% macro badge(e) -%}
+      <span class="badge e-{{ (e or 'Nuevo').split(' ')[0] }}">{{ e or 'Nuevo' }}</span>
+    {%- endmacro %}
+
+    <div class="embudo">
+      {% for e in estados %}
+      <a href="/admin?estado={{ e|urlencode }}" class="{{ 'on' if f_estado == e }}"><b>{{ embudo[e] }}</b><span>{{ e }}</span></a>
+      {% endfor %}
+    </div>
+
+    <h2>📞 Para contactar hoy <span class="n">{{ hoy_lista|length }}</span></h2>
+    <div class="card">
+      {% if hoy_lista %}
+      <div class="hoy">
+        {% for l in hoy_lista %}
+        {% set vencido = l.proximo_contacto and l.proximo_contacto < hoy %}
+        <div class="it {{ 'venc' if vencido }}">
+          <div class="top">
+            <div>
+              <a class="nom" href="/admin/prospecto/{{ l.id }}">{{ l.nombre }}</a>
+              <div class="meta">{{ l.proyecto or 'Sin proyecto' }} · {{ l.origen or 'web' }}</div>
+            </div>
+            {{ badge(l.estado) }}
+          </div>
+          <div class="meta">
+            {% if l.proximo_contacto %}
+              {% if vencido %}<span class="venc-txt">Vencido: {{ l.proximo_contacto.strftime('%d/%m') }}</span>{% else %}Hoy{% endif %}
+            {% else %}Nuevo, sin contactar · llegó {{ l.creado.strftime('%d/%m') if l.creado }}{% endif %}
+            · <a class="wa" href="https://wa.me/{{ l.whatsapp|wa_num }}" target="_blank">WhatsApp</a>
+          </div>
+          {% if ultima_nota[l.id] %}<div class="nota">{{ ultima_nota[l.id] }}</div>{% endif %}
+          <form class="rapido" method="post" action="/admin/prospecto/{{ l.id }}/nota">
+            <input type="hidden" name="volver" value="/admin">
+            <input type="text" name="texto" placeholder="Qué hablaste…">
+            <select name="en_dias" title="Próximo contacto">
+              <option value="">Volver a llamar…</option>
+              <option value="1">Mañana</option>
+              <option value="3">En 3 días</option>
+              <option value="7">En 1 semana</option>
+              <option value="15">En 15 días</option>
+              <option value="30">En 1 mes</option>
+            </select>
+            <button type="submit">Guardar</button>
+          </form>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-      <div class="vacio">Todavía no llegaron leads. Compartí el link en tu bio de Instagram 📲</div>
-    {% endif %}
+      </div>
+      {% else %}
+      <div class="vacio-hoy">Nada pendiente para hoy 👌</div>
+      {% endif %}
+    </div>
+
+    <h2>Todos los prospectos <span class="n">{{ leads|length }}</span></h2>
+    <div class="card">
+      <form class="filtros" method="get" action="/admin">
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre, teléfono, email o mensaje">
+        <select name="estado"><option value="">Todos los estados</option>
+          {% for e in estados %}<option {{ 'selected' if f_estado == e }}>{{ e }}</option>{% endfor %}</select>
+        <select name="proyecto"><option value="">Todos los proyectos</option>
+          {% for p in proyectos %}<option {{ 'selected' if f_proyecto == p }}>{{ p }}</option>{% endfor %}</select>
+        <select name="origen"><option value="">Todos los orígenes</option>
+          {% for o in origenes %}<option {{ 'selected' if f_origen == o }}>{{ o }}</option>{% endfor %}</select>
+        <button type="submit">Filtrar</button>
+        {% if q or f_estado or f_proyecto or f_origen %}<a href="/admin">Limpiar</a>{% endif %}
+      </form>
+      {% if leads %}
+      <div class="tabla">
+      <table>
+        <thead><tr>
+          <th>Llegó</th><th>Nombre</th><th>WhatsApp</th><th>Proyecto</th><th>Origen</th>
+          <th>Estado</th><th>Próx. contacto</th><th>Última nota</th>
+        </tr></thead>
+        <tbody>
+          {% for l in leads %}
+          <tr class="fila" onclick="if(!event.target.closest('a'))location='/admin/prospecto/{{ l.id }}'">
+            <td>{{ l.creado.strftime('%d/%m/%y') if l.creado }}<div class="sub">{{ 'manual' if l.carga == 'manual' else 'web' }}</div></td>
+            <td><strong>{{ l.nombre }}</strong><div class="sub">{{ l.email }}</div></td>
+            <td><a class="wa" href="https://wa.me/{{ l.whatsapp|wa_num }}" target="_blank">{{ l.whatsapp }}</a></td>
+            <td>{{ l.proyecto or '—' }}{% if l.unidad %}<div class="sub">{{ l.unidad }}</div>{% endif %}</td>
+            <td><span class="orig">{{ l.origen or 'web' }}</span></td>
+            <td>{{ badge(l.estado) }}</td>
+            <td>{% if l.proximo_contacto %}<span class="{{ 'venc-txt' if l.proximo_contacto < hoy and l.estado not in ['Compró','Descartado'] }}">{{ l.proximo_contacto.strftime('%d/%m/%y') }}</span>{% else %}—{% endif %}</td>
+            <td class="sub" style="max-width:280px">{{ (ultima_nota[l.id] or l.mensaje or '')[:110] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        <div class="vacio">No hay prospectos con esos filtros.</div>
+      {% endif %}
+    </div>
   </div>
 </body>
 </html>
