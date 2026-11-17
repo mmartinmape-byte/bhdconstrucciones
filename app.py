@@ -207,6 +207,18 @@ class InmuebleFoto(Base):
     inmueble = relationship("Inmueble", back_populates="fotos")
 
 
+class Folleto(Base):
+    """Folleto PDF de un proyecto, que se entrega a quien deja sus datos en /folleto/<slug>."""
+    __tablename__ = "folletos"
+
+    id = Column(Integer, primary_key=True)
+    slug = Column(String(80), unique=True, nullable=False)   # parte del link: /folleto/<slug>
+    proyecto = Column(String(120), nullable=False)            # nombre del proyecto (igual que en PROYECTOS)
+    archivo = Column(String(160), default="folleto.pdf")      # nombre del archivo al descargar
+    pdf = Column(LargeBinary, nullable=False)
+    actualizado = Column(DateTime, default=datetime.utcnow)
+
+
 Base.metadata.create_all(engine)
 
 
@@ -627,6 +639,123 @@ def gracias():
                            whatsapp=WHATSAPP_EMPRESA, wa_link=wa_link)
 
 
+# --- Link de folleto: deja sus datos y recibe el PDF -------------------------
+def slugify(txt):
+    import unicodedata, re
+    t = unicodedata.normalize("NFKD", txt or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", t).strip("-")[:80]
+
+
+def _proyecto_info(nombre):
+    return next((p for p in PROYECTOS if p["nombre"] == nombre), None)
+
+
+def _buscar_lead_por_whatsapp(db, numero):
+    n = wa_num(numero)
+    if not n:
+        return None
+    for l in db.query(Lead).order_by(Lead.creado.desc()).all():
+        if wa_num(l.whatsapp) == n:
+            return l
+    return None
+
+
+@app.route("/folleto/<slug>", methods=["GET", "POST"])
+def folleto_form(slug):
+    db = SessionLocal()
+    try:
+        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        if not f:
+            abort(404)
+        proyecto = f.proyecto
+        if request.method == "POST":
+            nombre = request.form.get("nombre", "").strip()
+            whatsapp = request.form.get("whatsapp", "").strip()
+            email = request.form.get("email", "").strip()
+            if not nombre or not whatsapp or not email:
+                flash("Por favor completá nombre, WhatsApp y email.")
+                return redirect(url_for("folleto_form", slug=slug, origen=request.form.get("origen", "")))
+            origen = (request.form.get("origen") or session.get("origen") or "link-folleto").strip()[:80]
+            busca = request.form.get("busca", "").strip()
+            mensaje = request.form.get("mensaje", "").strip()
+            lead = _buscar_lead_por_whatsapp(db, whatsapp)
+            if lead:
+                # ya lo teníamos: no duplicar, dejar constancia en su historial
+                if not lead.proyecto:
+                    lead.proyecto = proyecto
+                if not lead.email and email:
+                    lead.email = email
+                db.add(LeadNota(lead_id=lead.id, texto=f"Volvió a pedir el folleto de {proyecto} (origen: {origen})"
+                                + (f". Comentario: {mensaje}" if mensaje else "")))
+                es_nuevo = False
+            else:
+                lead = Lead(nombre=nombre, whatsapp=whatsapp, email=email, busca=busca,
+                            tipo_propiedad="Departamento", zona="", mensaje=mensaje,
+                            proyecto=proyecto, origen=origen, estado="Nuevo", carga="web")
+                db.add(lead)
+                db.flush()
+                db.add(LeadNota(lead_id=lead.id, texto=f"Descargó el folleto de {proyecto}"))
+                es_nuevo = True
+            db.commit()
+            datos = {"nombre": nombre, "whatsapp": whatsapp, "email": email, "busca": busca,
+                     "tipo_propiedad": "Departamento", "zona": "", "proyecto": proyecto, "origen": origen,
+                     "mensaje": ("[Pidió el folleto] " if es_nuevo else "[Volvió a pedir el folleto] ") + mensaje}
+            permitidos = set(session.get("folletos", []))
+            permitidos.add(slug)
+            session["folletos"] = sorted(permitidos)
+            try:
+                enviar_notificacion(datos)
+            except Exception as e:
+                app.logger.warning("No se pudo enviar el email de aviso: %s", e)
+            try:
+                enviar_whatsapp(datos)
+            except Exception as e:
+                app.logger.warning("No se pudo enviar el WhatsApp de aviso: %s", e)
+            return redirect(url_for("folleto_gracias", slug=slug))
+        info = _proyecto_info(proyecto) or {}
+        return render_template("folleto_form.html", empresa=EMPRESA, slug=slug, proyecto=proyecto,
+                               info=info, origen=request.args.get("origen", "")[:80])
+    finally:
+        db.close()
+
+
+@app.route("/folleto/<slug>/listo")
+def folleto_gracias(slug):
+    if slug not in session.get("folletos", []):
+        return redirect(url_for("folleto_form", slug=slug))
+    db = SessionLocal()
+    try:
+        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        if not f:
+            abort(404)
+        proyecto = f.proyecto
+    finally:
+        db.close()
+    wa_link = ""
+    if WHATSAPP_EMPRESA:
+        texto = f"¡Hola {EMPRESA}! Descargué el folleto de {proyecto} y quiero más información."
+        wa_link = "https://wa.me/" + WHATSAPP_EMPRESA + "?text=" + urllib.parse.quote(texto)
+    return render_template("folleto_gracias.html", empresa=EMPRESA, slug=slug, proyecto=proyecto, wa_link=wa_link)
+
+
+@app.route("/folleto/<slug>/pdf")
+def folleto_pdf(slug):
+    if slug not in session.get("folletos", []):
+        return redirect(url_for("folleto_form", slug=slug))
+    db = SessionLocal()
+    try:
+        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        if not f:
+            abort(404)
+        datos, archivo = f.pdf, f.archivo or "folleto.pdf"
+    finally:
+        db.close()
+    nombre_ascii = archivo.encode("ascii", "ignore").decode() or "folleto.pdf"
+    return Response(datos, mimetype="application/pdf", headers={
+        "Content-Disposition": f"inline; filename=\"{nombre_ascii}\"; filename*=UTF-8''{urllib.parse.quote(archivo)}",
+    })
+
+
 # --- Admin ------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -881,6 +1010,84 @@ def exportar():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=prospectos.csv"},
     )
+
+
+# --- Admin: folletos --------------------------------------------------------
+@app.route("/admin/folletos", methods=["GET", "POST"])
+@login_required
+def admin_folletos():
+    db = SessionLocal()
+    try:
+        if request.method == "POST":
+            archivo = request.files.get("pdf")
+            proyecto = request.form.get("proyecto", "").strip()
+            slug = slugify(request.form.get("slug", "") or proyecto)
+            raw = archivo.read() if archivo and archivo.filename else b""
+            existente = db.query(Folleto).filter(Folleto.slug == slug).first() if slug else None
+            if not proyecto or not slug:
+                flash("Elegí el proyecto.")
+            elif not raw and not existente:
+                flash("Subí el PDF del folleto.")
+            elif raw and not raw.startswith(b"%PDF"):
+                flash("El archivo no es un PDF.")
+            else:
+                f = existente or Folleto(slug=slug, proyecto=proyecto)
+                f.proyecto = proyecto
+                if raw:
+                    f.pdf = raw
+                    f.archivo = archivo.filename
+                f.actualizado = datetime.utcnow()
+                if not existente:
+                    db.add(f)
+                db.commit()
+                flash(f"Folleto de {proyecto} guardado.")
+            return redirect(url_for("admin_folletos"))
+        folletos = db.query(Folleto).order_by(Folleto.proyecto).all()
+        base = request.url_root.rstrip("/")
+        if "localhost" not in base and "127.0.0.1" not in base:
+            base = base.replace("http://", "https://", 1)  # Railway sirve por https detrás de un proxy
+        filas = []
+        for f in folletos:
+            link = f"{base}/folleto/{f.slug}?origen=whatsapp"
+            texto = (f"¡Hola! Te paso el link para descargar el folleto de {f.proyecto}. "
+                     f"Completá tus datos y lo recibís al instante: {link}")
+            descargas = db.query(LeadNota).filter(LeadNota.texto.like(f"%folleto de {f.proyecto}%")).count()
+            filas.append({"id": f.id, "slug": f.slug, "proyecto": f.proyecto, "archivo": f.archivo,
+                          "kb": len(f.pdf or b"") // 1024, "descargas": descargas,
+                          "actualizado": f.actualizado, "link": link,
+                          "wa_share": "https://wa.me/?text=" + urllib.parse.quote(texto)})
+        return render_template("admin_folletos.html", empresa=EMPRESA, folletos=filas,
+                               proyectos=[p["nombre"] for p in PROYECTOS])
+    finally:
+        db.close()
+
+
+@app.route("/admin/folletos/<int:fid>/borrar", methods=["POST"])
+@login_required
+def admin_folleto_borrar(fid):
+    db = SessionLocal()
+    try:
+        f = db.get(Folleto, fid)
+        if f:
+            db.delete(f)
+            db.commit()
+    finally:
+        db.close()
+    return redirect(url_for("admin_folletos"))
+
+
+@app.route("/admin/folletos/<int:fid>/ver")
+@login_required
+def admin_folleto_ver(fid):
+    db = SessionLocal()
+    try:
+        f = db.get(Folleto, fid)
+        if not f:
+            abort(404)
+        datos = f.pdf
+    finally:
+        db.close()
+    return Response(datos, mimetype="application/pdf")
 
 
 # --- Admin: inmuebles -------------------------------------------------------

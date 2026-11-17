@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folletos — {{ empresa }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f9;color:#1c2733}
+    header{background:#111418;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+    header h1{font-size:18px}
+    .acciones{display:flex;gap:8px;flex-wrap:wrap}
+    .acciones a{color:#fff;text-decoration:none;font-size:13px;border:1px solid rgba(255,255,255,.3);padding:8px 14px;border-radius:8px}
+    .cont{max-width:1000px;margin:0 auto;padding:18px}
+    .card{background:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(15,37,64,.06);padding:18px;margin-bottom:18px}
+    h2{font-size:15px;margin-bottom:12px}
+    .flash{background:#e3f6ea;color:#1d7a43;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px}
+    form.subir{display:grid;grid-template-columns:1fr 1fr 1.3fr auto;gap:10px;align-items:end}
+    @media(max-width:760px){form.subir{grid-template-columns:1fr}}
+    label{display:block;font-size:12px;color:#5a6673;font-weight:600;margin-bottom:4px}
+    input,select{width:100%;border:1px solid #dfe4ea;border-radius:8px;padding:9px 10px;font-size:14px;background:#fff;font-family:inherit}
+    .btn{background:#29b6e8;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+    .btn.wa{background:#25D366}
+    .btn.gris{background:#eef1f6;color:#1c2733}
+    .ayuda{font-size:12.5px;color:#8a94a0;margin-top:8px}
+    .f{border:1px solid #eef1f6;border-radius:12px;padding:16px;margin-top:12px}
+    .f .top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+    .f h3{font-size:17px}
+    .f .meta{font-size:12.5px;color:#8a94a0;margin-top:2px}
+    .link{display:flex;gap:8px;margin:12px 0}
+    .link input{font-family:Consolas,monospace;font-size:13px;background:#f7f9fb}
+    .botones{display:flex;gap:8px;flex-wrap:wrap}
+    .del{background:none;border:1px solid #e0b4b4;color:#c0392b;border-radius:7px;padding:8px 12px;font-size:12.5px;cursor:pointer;font-weight:600}
+    .vacio{color:#8a94a0;font-size:14px;padding:10px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Folletos por link</h1>
+    <div class="acciones">
+      <a href="/admin">👥 Prospectos</a>
+      <a href="/admin/inmuebles">🏠 Propiedades</a>
+      <a href="/logout">Salir</a>
+    </div>
+  </header>
+  <div class="cont">
+    {% with messages = get_flashed_messages() %}{% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}{% endwith %}
+
+    <div class="card">
+      <h2>Subir o reemplazar un folleto</h2>
+      <form class="subir" method="post" enctype="multipart/form-data">
+        <div><label>Proyecto</label>
+          <select name="proyecto" id="proy" onchange="document.getElementById('slug').placeholder=slug(this.value)">
+            {% for p in proyectos %}<option>{{ p }}</option>{% endfor %}
+          </select></div>
+        <div><label>Nombre en el link (opcional)</label><input name="slug" id="slug" placeholder=""></div>
+        <div><label>PDF del folleto</label><input type="file" name="pdf" accept="application/pdf"></div>
+        <button class="btn" type="submit">Guardar</button>
+      </form>
+      <p class="ayuda">Si ya hay un folleto con el mismo nombre de link, se reemplaza el PDF y el link sigue siendo el mismo.</p>
+    </div>
+
+    <div class="card">
+      <h2>Links para mandar por WhatsApp</h2>
+      {% for f in folletos %}
+      <div class="f">
+        <div class="top">
+          <div>
+            <h3>{{ f.proyecto }}</h3>
+            <div class="meta">{{ f.archivo }} · {{ f.kb }} KB · actualizado {{ f.actualizado.strftime('%d/%m/%Y') if f.actualizado }} · {{ f.descargas }} pedido(s)</div>
+          </div>
+          <form method="post" action="/admin/folletos/{{ f.id }}/borrar" onsubmit="return confirm('¿Borrar este folleto? El link deja de funcionar.');"><button class="del">Borrar</button></form>
+        </div>
+        <div class="link"><input readonly value="{{ f.link }}" id="l{{ f.id }}"><button class="btn gris" type="button" onclick="copiar('l{{ f.id }}', this)">Copiar</button></div>
+        <div class="botones">
+          <a class="btn wa" href="{{ f.wa_share }}" target="_blank">Enviar por WhatsApp</a>
+          <a class="btn gris" href="{{ f.link }}" target="_blank">Ver como cliente</a>
+          <a class="btn gris" href="/admin/folletos/{{ f.id }}/ver" target="_blank">Ver PDF</a>
+        </div>
+      </div>
+      {% else %}
+      <p class="vacio">Todavía no subiste ningún folleto.</p>
+      {% endfor %}
+      <p class="ayuda">El link termina en <b>?origen=whatsapp</b>. Si lo usás en otro lado, cambiá esa palabra (por ejemplo <b>?origen=instagram</b>) para saber de dónde vino cada consulta.</p>
+    </div>
+  </div>
+<script>
+  function slug(t){return t.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
+  var p=document.getElementById('proy'); if(p) document.getElementById('slug').placeholder=slug(p.value);
+  function copiar(id,b){var i=document.getElementById(id);i.select();
+    (navigator.clipboard?navigator.clipboard.writeText(i.value):Promise.reject()).catch(function(){document.execCommand('copy')});
+    b.textContent='¡Copiado!';setTimeout(function(){b.textContent='Copiar'},1500)}
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folleto {{ proyecto }} — {{ empresa }}</title>
+  <meta property="og:title" content="Folleto {{ proyecto }} — {{ empresa }}">
+  <meta property="og:description" content="Dejá tus datos y descargá el folleto con planos, terminaciones y precios.">
+  <style>
+    :root{--celeste:#29b6e8;--celeste-osc:#1c9fd1;--negro:#111418;--texto:#1c2733;--linea:#e6eaee}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--negro);color:var(--texto);line-height:1.5}
+    .hero{position:relative;min-height:230px;display:flex;align-items:flex-end;padding:28px 22px;color:#fff;
+      background:linear-gradient(180deg,rgba(17,20,24,.15),rgba(17,20,24,.92)),var(--foto,#1c2229) center/cover}
+    .hero .logo{position:absolute;top:18px;left:22px;height:44px;background:#fff;border-radius:8px;padding:4px}
+    .hero .k{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--celeste);font-weight:700}
+    .hero h1{font-size:28px;line-height:1.15;margin:6px 0 6px}
+    .hero p{font-size:15px;opacity:.85}
+    .wrap{max-width:520px;margin:0 auto;padding:0 16px 40px}
+    .card{background:#fff;border-radius:16px;padding:24px 20px;margin-top:-14px;position:relative;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+    .card h2{font-size:20px;margin-bottom:4px;color:var(--negro)}
+    .card .sub{font-size:14px;color:#5a6673;margin-bottom:16px}
+    .inc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+    .inc span{font-size:12.5px;background:#eaf7fd;color:#1c6a86;border-radius:20px;padding:4px 10px;font-weight:600}
+    label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px}
+    .req{color:#c0392b}
+    input,textarea{width:100%;padding:13px 14px;border:1.5px solid var(--linea);border-radius:10px;font-size:16px;font-family:inherit;background:#fff}
+    textarea{min-height:70px;resize:vertical}
+    .opciones{display:flex;gap:8px;flex-wrap:wrap}
+    .opciones label{display:flex;align-items:center;gap:6px;font-weight:500;margin:0;border:1.5px solid var(--linea);border-radius:10px;padding:10px 12px;font-size:14px;flex:1;min-width:140px}
+    .opciones input{width:auto}
+    .btn{width:100%;margin-top:20px;background:var(--celeste);color:#fff;border:0;border-radius:10px;padding:16px;font-size:16px;font-weight:700;cursor:pointer}
+    .btn:hover{background:var(--celeste-osc)}
+    .nota{font-size:12.5px;color:#8a94a0;text-align:center;margin-top:10px}
+    .flash{background:#fdecea;color:#a93226;padding:10px 12px;border-radius:8px;font-size:14px;margin-bottom:10px}
+  </style>
+</head>
+<body>
+  <div class="hero" {% if info.imagen %}style="--foto:url('{{ url_for('static', filename=info.imagen) }}')"{% endif %}>
+    <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="{{ empresa }}">
+    <div>
+      <div class="k">{{ info.ubicacion or empresa }}</div>
+      <h1>{{ proyecto }}</h1>
+      {% if info.estado %}<p>{{ info.estado }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="wrap">
+    <form class="card" method="post">
+      {% with messages = get_flashed_messages() %}{% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}{% endwith %}
+      <h2>Descargá el folleto</h2>
+      <p class="sub">Completá tus datos y lo recibís al instante.</p>
+      <div class="inc"><span>Planos</span><span>Terminaciones</span><span>Superficies</span><span>Precios</span></div>
+
+      <input type="hidden" name="origen" value="{{ origen }}">
+
+      <label>Nombre y apellido <span class="req">*</span></label>
+      <input type="text" name="nombre" required autocomplete="name" placeholder="Tu nombre">
+
+      <label>WhatsApp <span class="req">*</span></label>
+      <input type="tel" name="whatsapp" required autocomplete="tel" placeholder="Ej: 11 5555 5555">
+
+      <label>Email <span class="req">*</span></label>
+      <input type="email" name="email" required autocomplete="email" placeholder="tu@email.com">
+
+      <label>¿Qué estás buscando?</label>
+      <div class="opciones">
+        <label><input type="radio" name="busca" value="Pozo (preventa)" checked> Invertir en pozo</label>
+        <label><input type="radio" name="busca" value="Propiedad terminada"> Para vivir / terminada</label>
+      </div>
+
+      <label>Comentario (opcional)</label>
+      <textarea name="mensaje" placeholder="¿Alguna unidad que te interese? ¿Alguna duda?"></textarea>
+
+      <button class="btn" type="submit">Descargar el folleto</button>
+      <p class="nota">Tus datos son confidenciales. Un asesor de {{ empresa }} puede contactarte para ampliar la información.</p>
+    </form>
+  </div>
+</body>
+</html>
