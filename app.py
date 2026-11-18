@@ -106,6 +106,16 @@ PROYECTOS = [
                        "Excelente oportunidad de inversión.",
         "imagen": "img/munro.png",
     },
+    {
+        "nombre": "PH Bermúdez 2324",
+        "ubicacion": "Olivos, Vicente López",
+        "estado": "En construcción · entrega marzo 2027",
+        "descripcion": "PH de 1 dormitorio a estrenar: 52 m² cubiertos más patio propio "
+                       "de 4,7 m². Dormitorio con vestidor, cocina con barra integrada y "
+                       "baño completo. Pisos de porcelanato símil madera y aberturas negras. "
+                       "USD 150.000: 30% al boleto, 90% a la posesión y saldo a la escritura.",
+        "imagen": "img/bermudez.jpg",
+    },
 ]
 
 # Etapas del seguimiento de prospectos (en orden)

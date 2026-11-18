@@ -50,9 +50,9 @@
       <h2>Subir o reemplazar un folleto</h2>
       <form class="subir" method="post" enctype="multipart/form-data">
         <div><label>Proyecto</label>
-          <select name="proyecto" id="proy" onchange="document.getElementById('slug').placeholder=slug(this.value)">
-            {% for p in proyectos %}<option>{{ p }}</option>{% endfor %}
-          </select></div>
+          <input name="proyecto" id="proy" list="lista-proy" required placeholder="Elegí o escribí el nombre"
+                 oninput="document.getElementById('slug').placeholder=slug(this.value)">
+          <datalist id="lista-proy">{% for p in proyectos %}<option value="{{ p }}">{% endfor %}</datalist></div>
         <div><label>Nombre en el link (opcional)</label><input name="slug" id="slug" placeholder=""></div>
         <div><label>PDF del folleto</label><input type="file" name="pdf" accept="application/pdf"></div>
         <button class="btn" type="submit">Guardar</button>
