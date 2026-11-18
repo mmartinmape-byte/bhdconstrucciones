@@ -660,6 +660,36 @@ def _proyecto_info(nombre):
     return next((p for p in PROYECTOS if p["nombre"] == nombre), None)
 
 
+# Folletos fijos que viven en el repo (folletos/<slug>.pdf, fuera de /static para que no se bajen sin dejar datos). Sirven aunque no se hayan subido desde el panel;
+# si se sube uno con el mismo link desde /admin/folletos, el subido tiene prioridad.
+FOLLETOS_FIJOS = {
+    "ph-bermudez-2324": "PH Bermúdez 2324",
+    "pelliza-4535": "Edificio Munro",
+}
+
+
+class _FolletoInfo:
+    def __init__(self, slug, proyecto, archivo, cargar):
+        self.slug, self.proyecto, self.archivo, self._cargar = slug, proyecto, archivo, cargar
+
+    @property
+    def pdf(self):
+        return self._cargar()
+
+
+def _get_folleto(db, slug):
+    f = db.query(Folleto).filter(Folleto.slug == slug).first()
+    if f:
+        return _FolletoInfo(f.slug, f.proyecto, f.archivo, lambda f=f: f.pdf)
+    ruta = os.path.join(app.root_path, "folletos", f"{slug}.pdf")
+    if slug in FOLLETOS_FIJOS and os.path.exists(ruta):
+        def leer():
+            with open(ruta, "rb") as fh:
+                return fh.read()
+        return _FolletoInfo(slug, FOLLETOS_FIJOS[slug], f"Folleto {FOLLETOS_FIJOS[slug]}.pdf", leer)
+    return None
+
+
 def _buscar_lead_por_whatsapp(db, numero):
     n = wa_num(numero)
     if not n:
@@ -674,7 +704,7 @@ def _buscar_lead_por_whatsapp(db, numero):
 def folleto_form(slug):
     db = SessionLocal()
     try:
-        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        f = _get_folleto(db, slug)
         if not f:
             abort(404)
         proyecto = f.proyecto
@@ -735,7 +765,7 @@ def folleto_gracias(slug):
         return redirect(url_for("folleto_form", slug=slug))
     db = SessionLocal()
     try:
-        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        f = _get_folleto(db, slug)
         if not f:
             abort(404)
         proyecto = f.proyecto
@@ -754,7 +784,7 @@ def folleto_pdf(slug):
         return redirect(url_for("folleto_form", slug=slug))
     db = SessionLocal()
     try:
-        f = db.query(Folleto).filter(Folleto.slug == slug).first()
+        f = _get_folleto(db, slug)
         if not f:
             abort(404)
         datos, archivo = f.pdf, f.archivo or "folleto.pdf"
@@ -1049,8 +1079,13 @@ def admin_folletos():
                 f.actualizado = datetime.utcnow()
                 if not existente:
                     db.add(f)
-                db.commit()
-                flash(f"Folleto de {proyecto} guardado.")
+                try:
+                    db.commit()
+                    flash(f"Folleto de {proyecto} guardado.")
+                except Exception as e:
+                    db.rollback()
+                    app.logger.exception("No se pudo guardar el folleto")
+                    flash(f"No se pudo guardar el folleto: {type(e).__name__}: {str(e)[:200]}")
             return redirect(url_for("admin_folletos"))
         folletos = db.query(Folleto).order_by(Folleto.proyecto).all()
         base = request.url_root.rstrip("/")
